@@ -24,8 +24,9 @@ class IndicatorPayload(BaseModel):
 class RiskPayload(BaseModel):
     volatility: float
     drawdown: float
-    beta: float
     sharpe_ratio: float
     risk_score: float
     liquidity_risk: str
+    momentum_instability: float
+    market_regime: str
     explanation: str

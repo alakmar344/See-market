@@ -1,17 +1,17 @@
 # See-market
 
-Production-ready AI-powered financial market analysis platform.
+Production-grade AI-powered financial market analysis platform.
 
 ## Stack
 
 - **Frontend**: Next.js 15 (App Router), TypeScript, TailwindCSS, Zustand, React Query, Lightweight Charts, Framer Motion
-- **Backend**: FastAPI, asyncio, WebSockets, SQLAlchemy, PostgreSQL, Redis, Pandas/Numpy, scikit-learn, ta-lib
-- **AI**: Gemma (`google/gemma-4-26b-a4b-it`) through OpenRouter-compatible API
+- **Backend**: FastAPI, asyncio, WebSockets, SQLAlchemy + SQLite, Pandas/Numpy, scikit-learn, ta-lib
+- **AI**: Google AI Studio Gemma (`gemma-4-31b-it`) with backend-validated market context
 
 ## Repository layout
 
-- `frontend/` – web dashboard and chat client
-- `backend/` – API, AI orchestration, market intelligence services
+- `frontend/` – dashboard, market pages, AI chat, watchlist, onboarding
+- `backend/` – API, providers, indicator/risk/sentiment engines, auth, websocket streaming, cache
 - `docs/architecture.md` – architecture overview
 - `Dockerfile` + `render.yaml` – Render deployment
 
@@ -35,17 +35,30 @@ npm install
 npm run dev
 ```
 
-## Endpoints
+## API overview
 
 - `GET /health`
 - `POST /api/v1/auth/signup`
 - `POST /api/v1/auth/login`
+- `POST /api/v1/auth/forgot-password`
 - `GET /api/v1/markets/{symbol}`
-- `POST /api/v1/markets/analyze`
+- `GET /api/v1/markets/trending/list`
+- `GET /api/v1/markets/movers/list`
 - `POST /api/v1/chat/analyze`
+- `GET /api/v1/chat/saved`
+- `GET|POST|DELETE /api/v1/watchlist`
 - `WS /api/v1/chat/stream/{channel}`
+
+## Security defaults
+
+- Strict CORS origin allowlist
+- Request sanitization + Pydantic validation
+- CSRF middleware for state-changing requests
+- Rate limiting middleware
+- Security headers middleware
+- JWT auth + secure cookies + account lockout
 
 ## Deployment
 
-- Frontend is Vercel-compatible out of the box (`next build` / `next start`)
-- Backend is Render-compatible via included `Dockerfile` and `render.yaml`
+- Frontend is Vercel-compatible (`next build` / `next start`)
+- Backend is Render-compatible with included `Dockerfile` and `render.yaml`

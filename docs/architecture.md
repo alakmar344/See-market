@@ -4,29 +4,40 @@
 
 See-market is split into:
 
-- `frontend/`: Next.js 15 App Router UI (dashboard, markets, chat, watchlist, settings)
-- `backend/`: FastAPI async service layer (auth, market analysis, AI orchestration, websocket streaming)
+- `frontend/`: Next.js 15 App Router client for dashboard, chat, watchlist, settings
+- `backend/`: FastAPI async service for market intelligence, AI reasoning, auth, and realtime streams
 
-## Backend flow
+## Core backend pipeline
 
-1. API receives question (`/api/v1/chat/analyze`)
-2. `MarketAnalysisService` fetches market data from provider abstraction:
+1. User asks a market question.
+2. Provider abstraction fetches validated data:
    - Binance for crypto
    - Yahoo Finance for stocks
+   - Finnhub for news
    - AlphaVantage fallback
-3. Backend computes indicators, sentiment, and risk engines
-4. Structured compact JSON context is sent to Gemma via OpenRouter
-5. JSON response is returned to frontend with confidence and risk-aware narrative
+3. Backend computes indicators, risk metrics, and sentiment.
+4. Structured compact JSON context is generated and cached.
+5. Context is sent to Google AI Studio Gemma (`gemma-4-31b-it`) for reasoning.
+6. Backend returns structured analysis to frontend.
 
-## Security controls
+## Storage strategy
 
-- Request sanitization for user inputs
-- JWT auth with bcrypt hashing
-- account lockout after repeated failed login attempts
-- CORS middleware
-- security headers middleware (helmet-like)
-- request rate limiting middleware
+- SQLite via SQLAlchemy for users, chats, watchlists, and local persistence
+- JSON cache files for temporary market/cache payloads
+- In-memory async cache for low-latency live sessions
 
-## Realtime
+## Realtime system
 
-WebSocket route `/api/v1/chat/stream/{channel}` supports streaming analysis updates and watchlist widgets.
+WebSocket endpoint `/api/v1/chat/stream/{channel}` broadcasts:
+
+- context frames
+- streaming delta frames for AI response text
+- completion frame for final assembled output
+
+## Security and reliability
+
+- CORS allowlist with credentials
+- CSRF token checks for state-changing routes
+- Input sanitization + strict validation
+- Rate limiting and monitoring middleware
+- Structured logging + health endpoint + graceful lifespan startup/shutdown

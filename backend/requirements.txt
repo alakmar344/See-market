@@ -3,9 +3,7 @@ uvicorn[standard]==0.34.0
 pydantic==2.10.5
 pydantic-settings==2.7.0
 sqlalchemy==2.0.37
-alembic==1.14.1
-asyncpg==0.30.0
-redis==5.2.1
+aiosqlite==0.20.0
 httpx==0.28.1
 pandas==2.2.3
 numpy==2.2.1

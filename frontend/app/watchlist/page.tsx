@@ -3,34 +3,48 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
-import { UIButton } from '@/components/ui-button';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
 import { LiveStream } from '@/components/live-stream';
-import { useMarketStore } from '@/store/use-market-store';
+import { UIButton } from '@/components/ui-button';
+import { addWatchlist, fetchWatchlist, removeWatchlist } from '@/lib/api';
 
 export default function WatchlistPage() {
   const [symbol, setSymbol] = useState('');
-  const watchlist = useMarketStore((s) => s.watchlist);
-  const addSymbol = useMarketStore((s) => s.addSymbol);
-  const removeSymbol = useMarketStore((s) => s.removeSymbol);
+  const client = useQueryClient();
+  const watchlist = useQuery({ queryKey: ['watchlist'], queryFn: () => fetchWatchlist() });
+
+  const add = useMutation({
+    mutationFn: (value: string) => addWatchlist(value),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['watchlist'] }),
+  });
+  const remove = useMutation({
+    mutationFn: (value: string) => removeWatchlist(value),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['watchlist'] }),
+  });
+
+  const firstSymbol = watchlist.data?.items?.[0]?.symbol ?? 'BTCUSDT';
 
   return (
     <section className="space-y-4">
       <div className="panel flex gap-2 p-4">
         <input className="flex-1 rounded border border-white/20 bg-black/40 px-3 py-2 text-sm" placeholder="Add symbol" value={symbol} onChange={(e) => setSymbol(e.target.value)} />
-        <UIButton onClick={() => { addSymbol(symbol); setSymbol(''); }}>Add</UIButton>
+        <UIButton onClick={() => { if (symbol.trim()) add.mutate(symbol.trim()); setSymbol(''); }} disabled={add.isPending}>Add</UIButton>
       </div>
+
       <div className="grid gap-3 md:grid-cols-2">
-        {watchlist.map((item) => (
-          <div key={item} className="panel flex items-center justify-between p-4">
+        {(watchlist.data?.items ?? []).map((item) => (
+          <div key={item.id} className="panel flex items-center justify-between p-4">
             <div>
-              <p className="font-semibold">{item}</p>
-              <Link className="text-xs text-indigo-300" href={`/markets/${item}`}>Open market page</Link>
+              <p className="font-semibold">{item.symbol}</p>
+              <Link className="text-xs text-indigo-300" href={`/markets/${item.symbol}`}>Open market page</Link>
             </div>
-            <UIButton onClick={() => removeSymbol(item)} className="bg-rose-500 hover:bg-rose-400">Remove</UIButton>
+            <UIButton onClick={() => remove.mutate(item.symbol)} className="bg-rose-500 hover:bg-rose-400">Remove</UIButton>
           </div>
         ))}
       </div>
-      <LiveStream symbol={watchlist[0] ?? 'BTCUSDT'} />
+
+      <LiveStream symbol={firstSymbol} />
     </section>
   );
 }

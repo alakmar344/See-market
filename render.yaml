@@ -8,5 +8,7 @@ services:
     envVars:
       - key: APP_ENV
         value: production
-      - key: OPENROUTER_MODEL
-        value: google/gemma-4-26b-a4b-it
+      - key: DATABASE_URL
+        value: sqlite+aiosqlite:///./see_market.db
+      - key: GEMMA_MODEL
+        value: gemma-4-31b-it
