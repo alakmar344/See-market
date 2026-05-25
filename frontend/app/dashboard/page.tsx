@@ -20,24 +20,36 @@ export default function DashboardPage() {
     let active = true;
     setLoading(true);
     setError('');
+    console.log('[dashboard][load:start]', { symbol, assetType, active });
 
     Promise.all([fetchMarket(symbol, assetType), fetchMovers(assetType), fetchTrending(assetType)])
       .then(([market, moversRes, trendingRes]) => {
+        console.log('[dashboard][load:success]', {
+          symbol,
+          assetType,
+          marketSymbol: market.symbol,
+          moversCount: moversRes.items.length,
+          trendingCount: trendingRes.items.length,
+          active,
+        });
         if (!active) return;
         setData(market);
         setMovers(moversRes.items);
         setTrending(trendingRes.items);
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error('[dashboard][load:error]', { symbol, assetType, error, active });
         if (!active) return;
         setError('Could not load dashboard data.');
       })
       .finally(() => {
+        console.log('[dashboard][load:done]', { symbol, assetType, active });
         if (!active) return;
         setLoading(false);
       });
 
     return () => {
+      console.log('[dashboard][load:cleanup]', { symbol, assetType });
       active = false;
     };
   }, [assetType, symbol]);

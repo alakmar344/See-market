@@ -16,23 +16,31 @@ export default function MarketDetailsPage() {
   useEffect(() => {
     let active = true;
     setLoading(true);
+    console.log('[market-details][load:start]', { symbol, active });
     fetchMarket(symbol, 'stock')
       .then((response) => {
+        console.log('[market-details][load:success]', { symbol, responseSymbol: response.symbol, active });
         if (!active) return;
         setData(response);
       })
+      .catch((error) => {
+        console.error('[market-details][load:error]', { symbol, error, active });
+      })
       .finally(() => {
+        console.log('[market-details][load:done]', { symbol, active });
         if (!active) return;
         setLoading(false);
       });
 
     return () => {
+      console.log('[market-details][load:cleanup]', { symbol });
       active = false;
     };
   }, [symbol]);
 
   const saveSnapshot = () => {
     if (!data) return;
+    console.log('[market-details][snapshot:save]', { symbol });
     const payload = JSON.stringify(data, null, 2);
     const blob = new Blob([payload], { type: 'application/json' });
     const url = URL.createObjectURL(blob);

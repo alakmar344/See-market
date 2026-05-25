@@ -12,33 +12,47 @@ export default function WatchlistPage() {
   const [busy, setBusy] = useState(false);
 
   const refresh = async () => {
+    console.log('[watchlist][refresh:start]');
     const list = await fetchWatchlist();
+    console.log('[watchlist][refresh:success]', { itemCount: list.items.length });
     setItems(list.items);
   };
 
   useEffect(() => {
-    refresh();
+    refresh().catch((error) => {
+      console.error('[watchlist][refresh:error]', { error });
+    });
   }, []);
 
   const onAdd = async () => {
     const clean = symbol.trim();
     if (!clean) return;
+    console.log('[watchlist][add:start]', { symbol: clean });
     setBusy(true);
     try {
       await addWatchlist(clean);
+      console.log('[watchlist][add:success]', { symbol: clean });
       setSymbol('');
       await refresh();
+    } catch (error) {
+      console.error('[watchlist][add:error]', { symbol: clean, error });
     } finally {
+      console.log('[watchlist][add:done]', { symbol: clean });
       setBusy(false);
     }
   };
 
   const onRemove = async (value: string) => {
+    console.log('[watchlist][remove:start]', { symbol: value });
     setBusy(true);
     try {
       await removeWatchlist(value);
+      console.log('[watchlist][remove:success]', { symbol: value });
       await refresh();
+    } catch (error) {
+      console.error('[watchlist][remove:error]', { symbol: value, error });
     } finally {
+      console.log('[watchlist][remove:done]', { symbol: value });
       setBusy(false);
     }
   };

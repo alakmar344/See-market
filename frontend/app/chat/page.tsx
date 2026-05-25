@@ -18,33 +18,45 @@ export default function ChatPage() {
 
   useEffect(() => {
     let active = true;
+    console.log('[chat][saved:init]', { active });
     fetchSavedChats()
       .then((data) => {
+        console.log('[chat][saved:success]', { itemCount: data.items.length, active });
         if (!active) return;
         setSaved(data.items);
       })
+      .catch((error) => {
+        console.error('[chat][saved:error]', { error, active });
+      })
       .finally(() => {
+        console.log('[chat][saved:done]', { active });
         if (!active) return;
         setLoadingSaved(false);
       });
 
     return () => {
+      console.log('[chat][saved:cleanup]');
       active = false;
     };
   }, []);
 
   const runAnalysis = async () => {
+    console.log('[chat][analysis:start]', { symbol, assetType, questionLength: question.length });
     setAnalyzing(true);
     try {
       const result = await askAI(symbol, question, assetType);
+      console.log('[chat][analysis:success]', { symbol, assetType, analysisKeys: Object.keys(result.analysis ?? {}) });
       setAnalysisText(JSON.stringify(result.analysis, null, 2));
       setConfidence(Number(result.analysis.confidence_level ?? 0.7));
       const savedChats = await fetchSavedChats();
+      console.log('[chat][analysis:saved-refresh]', { itemCount: savedChats.items.length });
       setSaved(savedChats.items);
-    } catch {
+    } catch (error) {
+      console.error('[chat][analysis:error]', { error, symbol, assetType });
       setAnalysisText('Analysis failed. Please retry.');
       setConfidence(0.2);
     } finally {
+      console.log('[chat][analysis:done]');
       setAnalyzing(false);
     }
   };

@@ -1,4 +1,5 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+let requestCounter = 0;
 
 export type AssetType = 'stock' | 'crypto';
 
@@ -23,17 +24,64 @@ export type SavedChatItem = { id: number; symbol: string; question: string; answ
 export type WatchlistItem = { id: number; symbol: string; created_at: string };
 
 async function jsonRequest<T>(input: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      ...(init?.headers ?? {}),
-    },
-    credentials: 'include',
-    cache: 'no-store',
-  });
-  if (!response.ok) throw new Error(`Request failed: ${response.status}`);
-  return response.json() as Promise<T>;
+  const requestId = `req-${Date.now()}-${++requestCounter}`;
+  const method = init?.method ?? 'GET';
+  const headers = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    ...(init?.headers ?? {}),
+  };
+
+  console.log('[api][request:start]', { requestId, method, input, body: init?.body ?? null, headers });
+
+  const startedAt = Date.now();
+
+  try {
+    const response = await fetch(input, {
+      ...init,
+      headers,
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    const durationMs = Date.now() - startedAt;
+    const contentType = response.headers.get('content-type');
+
+    console.log('[api][request:response]', {
+      requestId,
+      method,
+      input,
+      status: response.status,
+      ok: response.ok,
+      durationMs,
+      contentType,
+    });
+
+    const responseBody = (await response.json()) as T;
+
+    console.log('[api][request:parsed]', {
+      requestId,
+      method,
+      input,
+      status: response.status,
+      durationMs,
+      responseBody,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status}`);
+    }
+
+    return responseBody;
+  } catch (error) {
+    const durationMs = Date.now() - startedAt;
+    console.error('[api][request:error]', {
+      requestId,
+      method,
+      input,
+      durationMs,
+      error,
+    });
+    throw error;
+  }
 }
 
 export function fetchMarket(symbol: string, assetType: AssetType = 'stock') {
