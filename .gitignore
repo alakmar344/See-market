@@ -9,3 +9,5 @@ node_modules/
 out/
 coverage/
 .pytest_cache/
+*.db
+backend/*.db

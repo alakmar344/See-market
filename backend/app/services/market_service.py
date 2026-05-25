@@ -61,7 +61,10 @@ class MarketAnalysisService:
         if cached:
             return cached
         provider = provider_for(asset_type)
-        movers = await provider.market_movers()
+        try:
+            movers = await provider.market_movers()
+        except Exception:
+            movers = []
         await cache_service.set(cache_key, movers, ttl_seconds=60)
         return movers
 
@@ -71,6 +74,9 @@ class MarketAnalysisService:
         if cached:
             return cached
         provider = provider_for(asset_type)
-        trending_assets = await provider.trending_assets()
+        try:
+            trending_assets = await provider.trending_assets()
+        except Exception:
+            trending_assets = []
         await cache_service.set(cache_key, trending_assets, ttl_seconds=60)
         return trending_assets
