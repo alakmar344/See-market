@@ -22,6 +22,11 @@ export type MarketSnapshot = {
 export type MoverItem = { symbol: string; change_pct: number; price: number };
 export type SavedChatItem = { id: number; symbol: string; question: string; answer: string; created_at: string };
 export type WatchlistItem = { id: number; symbol: string; created_at: string };
+export type DashboardPayload = {
+  market: MarketSnapshot;
+  movers: { items: MoverItem[] };
+  trending: { items: MoverItem[] };
+};
 
 async function jsonRequest<T>(input: string, init?: RequestInit): Promise<T> {
   const requestId = `req-${Date.now()}-${++requestCounter}`;
@@ -102,6 +107,10 @@ export function fetchMovers(assetType: AssetType) {
 
 export function fetchTrending(assetType: AssetType) {
   return jsonRequest<{ items: MoverItem[] }>(`${API_URL}/api/v1/markets/trending/list?asset_type=${assetType}`, { method: 'GET', headers: {} });
+}
+
+export function fetchDashboard(symbol: string, assetType: AssetType = 'stock') {
+  return jsonRequest<DashboardPayload>(`${API_URL}/api/v1/dashboard/${symbol}?asset_type=${assetType}`, { method: 'GET' });
 }
 
 export function fetchSavedChats(userId = 1) {

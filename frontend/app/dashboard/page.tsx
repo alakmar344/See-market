@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 
 import { LiveChart } from '@/components/live-chart';
 import type { AssetType, MarketSnapshot, MoverItem } from '@/lib/api';
-import { fetchMarket, fetchMovers, fetchTrending } from '@/lib/api';
+import { fetchDashboard } from '@/lib/api';
 
 export default function DashboardPage() {
   const [symbol, setSymbol] = useState('AAPL');
@@ -22,8 +22,8 @@ export default function DashboardPage() {
     setError('');
     console.log('[dashboard][load:start]', { symbol, assetType, active });
 
-    Promise.all([fetchMarket(symbol, assetType), fetchMovers(assetType), fetchTrending(assetType)])
-      .then(([market, moversRes, trendingRes]) => {
+    fetchDashboard(symbol, assetType)
+      .then(({ market, movers: moversRes, trending: trendingRes }) => {
         console.log('[dashboard][load:success]', {
           symbol,
           assetType,
