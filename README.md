@@ -6,7 +6,7 @@ Simplified market analysis platform with a Next.js frontend and a lightweight No
 
 - **Frontend**: Next.js 15, TypeScript, TailwindCSS
 - **Backend**: Node.js + Express (JavaScript)
-- **Market data**: Yahoo Finance public endpoints
+- **Market data**: Finnhub APIs
 
 ## Repository layout
 
@@ -21,6 +21,7 @@ Simplified market analysis platform with a Next.js frontend and a lightweight No
 
 - `PORT=8000`
 - `CORS_ORIGIN=https://see-market.vercel.app`
+- `FINNHUB_API_KEY=your_finnhub_api_key`
 
 ### Frontend (`frontend/.env.local`)
 

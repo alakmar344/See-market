@@ -10,7 +10,7 @@ See-market is split into:
 ## Core backend flow
 
 1. User requests market data.
-2. Backend fetches quotes/history from Yahoo Finance.
+2. Backend fetches quotes/history from Finnhub.
 3. Backend computes lightweight indicators (RSI, MACD, trend, support/resistance) and risk score.
 4. Backend returns compact JSON used directly by the frontend.
 5. Chat analysis is stored in a local JSON file for quick retrieval.

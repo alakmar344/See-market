@@ -71,40 +71,65 @@ function normalizeSymbol(value) {
   return sanitizeText(value).toUpperCase();
 }
 
-function yahooSymbol(symbol, assetType) {
+const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
+const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY || '';
+
+function finnhubSymbol(symbol, assetType) {
   if (assetType === 'crypto') {
-    const base = symbol.endsWith('USDT') ? symbol.slice(0, -4) : symbol;
-    return `${base}-USD`;
+    const base = symbol.endsWith('USDT')
+      ? symbol.slice(0, -4)
+      : symbol.endsWith('USD')
+        ? symbol.slice(0, -3)
+        : symbol;
+    return `BINANCE:${base}USDT`;
   }
   return symbol;
 }
 
-async function fetchYahooQuote(symbol) {
-  console.log('[provider][quote:start]', { symbol });
-  const response = await fetch(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`);
+async function fetchFinnhub(endpoint, params = {}) {
+  if (!FINNHUB_API_KEY) throw new Error('FINNHUB_API_KEY is not configured');
+  const url = new URL(`${FINNHUB_BASE_URL}${endpoint}`);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value));
+  });
+  url.searchParams.set('token', FINNHUB_API_KEY);
+  const response = await fetch(url.toString());
   const payload = await response.json();
-  console.log('[provider][quote:response]', { symbol, ok: response.ok, status: response.status });
-  const quote = payload?.quoteResponse?.result?.[0];
-  if (!quote) throw new Error('Quote unavailable');
-  console.log('[provider][quote:success]', { symbol, marketPrice: Number(quote.regularMarketPrice ?? 0) });
+  if (!response.ok) throw new Error(`Finnhub request failed (${response.status})`);
+  if (payload?.error) throw new Error(payload.error);
+  return payload;
+}
+
+async function fetchFinnhubQuote(symbol) {
+  console.log('[provider][quote:start]', { symbol });
+  const payload = await fetchFinnhub('/quote', { symbol });
+  const marketPrice = Number(payload?.c);
+  if (!Number.isFinite(marketPrice)) throw new Error('Quote unavailable');
+  const quote = {
+    regularMarketPrice: marketPrice,
+    regularMarketChangePercent: Number(payload?.dp ?? 0),
+    regularMarketVolume: 0
+  };
+  console.log('[provider][quote:success]', { symbol, marketPrice });
   return quote;
 }
 
-async function fetchYahooHistory(symbol) {
+async function fetchFinnhubHistory(symbol, assetType) {
   console.log('[provider][history:start]', { symbol });
-  const response = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1h&range=1mo`);
-  const payload = await response.json();
-  console.log('[provider][history:response]', { symbol, ok: response.ok, status: response.status });
-  const result = payload?.chart?.result?.[0];
-  const closes = result?.indicators?.quote?.[0]?.close ?? [];
-  const timestamps = result?.timestamp ?? [];
-
+  const to = Math.floor(Date.now() / 1000);
+  const from = to - (30 * 24 * 60 * 60);
+  const endpoint = assetType === 'crypto' ? '/crypto/candle' : '/stock/candle';
+  const payload = await fetchFinnhub(endpoint, { symbol, resolution: '60', from, to });
+  const closes = payload?.c ?? [];
+  const timestamps = payload?.t ?? [];
+  const volumes = payload?.v ?? [];
   const history = [];
   for (let i = 0; i < closes.length; i += 1) {
     const close = Number(closes[i]);
     const ts = Number(timestamps[i]);
+    const volume = Number(volumes[i] ?? 0);
     if (!Number.isFinite(close) || !Number.isFinite(ts)) continue;
-    history.push({ time: new Date(ts * 1000).toISOString(), value: close });
+    history.push({ time: new Date(ts * 1000).toISOString(), value: close, volume });
   }
 
   if (history.length < 2) throw new Error('History unavailable');
@@ -163,10 +188,27 @@ async function buildAnalysis({ symbol, question, assetType }) {
   const safeSymbol = normalizeSymbol(symbol);
   const safeQuestion = sanitizeText(question || 'Market snapshot') || 'Market snapshot';
   const safeAssetType = assetType === 'crypto' ? 'crypto' : 'stock';
-  const ySymbol = yahooSymbol(safeSymbol, safeAssetType);
-  console.log('[analysis][build:start]', { safeSymbol, safeAssetType, ySymbol });
+  const providerSymbol = finnhubSymbol(safeSymbol, safeAssetType);
+  console.log('[analysis][build:start]', { safeSymbol, safeAssetType, providerSymbol });
 
-  const [quote, history] = await Promise.all([fetchYahooQuote(ySymbol), fetchYahooHistory(ySymbol)]);
+  let quote;
+  let history;
+  if (safeAssetType === 'crypto') {
+    history = await fetchFinnhubHistory(providerSymbol, 'crypto');
+    const values = history.map((item) => item.value);
+    const latest = values.at(-1) ?? 0;
+    const previous = values.at(-2) ?? latest;
+    const changePct = previous === 0 ? 0 : ((latest - previous) / previous) * 100;
+    quote = {
+      regularMarketPrice: latest,
+      regularMarketChangePercent: changePct,
+      regularMarketVolume: Number(history.at(-1)?.volume ?? 0)
+    };
+  } else {
+    [quote, history] = await Promise.all([fetchFinnhubQuote(providerSymbol), fetchFinnhubHistory(providerSymbol, 'stock')]);
+    quote.regularMarketVolume = Number(history.at(-1)?.volume ?? 0);
+  }
+
   const values = history.map((item) => item.value);
   const rsi = computeRsi(values);
   const macd = ema(values, 12) - ema(values, 26);
@@ -213,19 +255,35 @@ async function buildAnalysis({ symbol, question, assetType }) {
 async function marketMovers(assetType) {
   console.log('[movers][start]', { assetType });
   const symbols = assetType === 'crypto'
-    ? ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD', 'XRP-USD', 'DOGE-USD', 'ADA-USD', 'AVAX-USD']
+    ? ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT']
     : ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'META', 'GOOGL', 'AMD'];
 
-  const response = await fetch(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols.join(',')}`);
-  const payload = await response.json();
-  console.log('[movers][response]', { assetType, ok: response.ok, status: response.status });
-  const items = (payload?.quoteResponse?.result ?? []).map((q) => ({
-    symbol: assetType === 'crypto' ? String(q.symbol || '').replace('-USD', 'USDT') : String(q.symbol || ''),
-    change_pct: Number(q.regularMarketChangePercent ?? 0),
-    price: Number(q.regularMarketPrice ?? 0)
+  const items = await Promise.allSettled(symbols.map(async (symbol) => {
+    if (assetType === 'crypto') {
+      const providerSymbol = finnhubSymbol(symbol, 'crypto');
+      const history = await fetchFinnhubHistory(providerSymbol, 'crypto');
+      const values = history.map((item) => item.value);
+      const latest = values.at(-1) ?? 0;
+      const previous = values.at(-2) ?? latest;
+      return {
+        symbol,
+        change_pct: previous === 0 ? 0 : ((latest - previous) / previous) * 100,
+        price: latest
+      };
+    }
+    const quote = await fetchFinnhubQuote(symbol);
+    return {
+      symbol,
+      change_pct: Number(quote.regularMarketChangePercent ?? 0),
+      price: Number(quote.regularMarketPrice ?? 0)
+    };
   }));
+  const fulfilled = items
+    .filter((result) => result.status === 'fulfilled')
+    .map((result) => result.value);
+  console.log('[movers][response]', { assetType, requested: symbols.length, returned: fulfilled.length });
   console.log('[movers][success]', { assetType, count: items.length });
-  return items.sort((a, b) => Math.abs(b.change_pct) - Math.abs(a.change_pct));
+  return fulfilled.sort((a, b) => Math.abs(b.change_pct) - Math.abs(a.change_pct));
 }
 
 app.get('/health', (_req, res) => {

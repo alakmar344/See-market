@@ -4,3 +4,6 @@ services:
     runtime: node
     buildCommand: npm install
     startCommand: npm start
+    envVars:
+      - key: FINNHUB_API_KEY
+        sync: false
