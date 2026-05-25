@@ -1,16 +1,11 @@
-FROM python:3.12-slim
+FROM node:22-alpine
 
 WORKDIR /app
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+COPY backend/package*.json ./
+RUN npm install
 
-RUN apt-get update && apt-get install -y build-essential wget && rm -rf /var/lib/apt/lists/*
-
-COPY backend/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
-
-COPY backend /app
+COPY backend ./
 
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["npm", "start"]

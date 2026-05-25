@@ -1,35 +1,56 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 import { AIResponse } from '@/components/ai-response';
 import { UIButton } from '@/components/ui-button';
-import { fetchMarket } from '@/lib/api';
+import { fetchMarket, type MarketSnapshot } from '@/lib/api';
 
 export default function MarketDetailsPage() {
   const params = useParams<{ symbol: string }>();
   const symbol = (params?.symbol ?? 'AAPL').toUpperCase();
-  const { data, isLoading } = useQuery({ queryKey: ['market', symbol], queryFn: () => fetchMarket(symbol, 'stock') });
+  const [data, setData] = useState<MarketSnapshot | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const saveScreenshot = () => {
-    const canvas = document.querySelector('canvas');
-    if (!(canvas instanceof HTMLCanvasElement)) return;
-    const url = canvas.toDataURL('image/png');
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    fetchMarket(symbol, 'stock')
+      .then((response) => {
+        if (!active) return;
+        setData(response);
+      })
+      .finally(() => {
+        if (!active) return;
+        setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [symbol]);
+
+  const saveSnapshot = () => {
+    if (!data) return;
+    const payload = JSON.stringify(data, null, 2);
+    const blob = new Blob([payload], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${symbol}-chart.png`;
+    link.download = `${symbol}-snapshot.json`;
     link.click();
+    URL.revokeObjectURL(url);
   };
 
-  if (isLoading || !data) return <div className="panel h-40 animate-pulse" />;
+  if (loading || !data) return <div className="panel h-40 animate-pulse" />;
 
   return (
     <section className="grid gap-4 lg:grid-cols-3">
       <div className="panel space-y-3 p-4 lg:col-span-2">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-xl font-semibold">{symbol}</h2>
-          <UIButton onClick={saveScreenshot}>Capture chart screenshot</UIButton>
+          <UIButton onClick={saveSnapshot}>Download market snapshot</UIButton>
         </div>
         <p className="text-sm text-slate-300">Trend: {data.indicators.trend_direction}</p>
         <p className="text-sm text-slate-300">RSI: {data.indicators.rsi.toFixed(2)} | MACD: {data.indicators.macd.toFixed(2)}</p>

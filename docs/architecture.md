@@ -4,40 +4,24 @@
 
 See-market is split into:
 
-- `frontend/`: Next.js 15 App Router client for dashboard, chat, watchlist, settings
-- `backend/`: FastAPI async service for market intelligence, AI reasoning, and realtime streams
+- `frontend/`: Next.js 15 App Router UI optimized for desktop and mobile
+- `backend/`: Express service that returns market snapshots, AI summaries, saved chats, and watchlist data
 
-## Core backend pipeline
+## Core backend flow
 
-1. User asks a market question.
-2. Provider abstraction fetches validated data:
-   - Binance for crypto
-   - Yahoo Finance for stocks
-   - Finnhub for news
-   - AlphaVantage fallback
-3. Backend computes indicators, risk metrics, and sentiment.
-4. Structured compact JSON context is generated and cached.
-5. Context is sent to Google AI Studio Gemma (`gemma-4-31b-it`) for reasoning.
-6. Backend returns structured analysis to frontend.
+1. User requests market data.
+2. Backend fetches quotes/history from Yahoo Finance.
+3. Backend computes lightweight indicators (RSI, MACD, trend, support/resistance) and risk score.
+4. Backend returns compact JSON used directly by the frontend.
+5. Chat analysis is stored in a local JSON file for quick retrieval.
 
 ## Storage strategy
 
-- SQLite via SQLAlchemy for users, chats, watchlists, and local persistence
-- JSON cache files for temporary market/cache payloads
-- In-memory async cache for low-latency live sessions
+- File-based JSON persistence for chats and watchlists in `backend/data/`
+- No database dependency required for local development
 
-## Realtime system
+## Security
 
-WebSocket endpoint `/api/v1/chat/stream/{channel}` broadcasts:
-
-- context frames
-- streaming delta frames for AI response text
-- completion frame for final assembled output
-
-## Security and reliability
-
-- CORS allowlist with credentials
-- CSRF token checks for state-changing routes
-- Input sanitization + strict validation
-- Rate limiting and monitoring middleware
-- Structured logging + health endpoint + graceful lifespan startup/shutdown
+- Strict CORS allowlist (single frontend origin): `https://see-market.vercel.app`
+- Input sanitization for symbols and form fields
+- Health endpoint for uptime checks
