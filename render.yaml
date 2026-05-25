@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: see-market-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: OPENROUTER_MODEL
+        value: google/gemma-4-26b-a4b-it
