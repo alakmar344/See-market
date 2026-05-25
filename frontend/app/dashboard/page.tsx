@@ -10,6 +10,7 @@ import { fetchMarket, fetchMovers, fetchTrending } from '@/lib/api';
 export default function DashboardPage() {
   const [symbol, setSymbol] = useState('BTCUSDT');
   const [assetType, setAssetType] = useState<'stock' | 'crypto'>('crypto');
+  const safeSymbol = symbol.replace(/[^A-Z0-9._-]/g, '');
 
   const { data, isLoading, error } = useQuery({ queryKey: ['dashboard', symbol, assetType], queryFn: () => fetchMarket(symbol, assetType) });
   const movers = useQuery({ queryKey: ['movers', assetType], queryFn: () => fetchMovers(assetType) });
@@ -26,7 +27,7 @@ export default function DashboardPage() {
           <option value="crypto">Crypto</option>
           <option value="stock">Stock</option>
         </select>
-        <Link href={`/markets/${symbol}`} className="rounded-lg border border-indigo-300/20 bg-indigo-500 px-4 py-2 text-center text-sm font-semibold shadow-[0_10px_24px_rgba(79,70,229,0.3)] transition hover:bg-indigo-400">Open market page</Link>
+        <Link href={`/markets/${encodeURIComponent(safeSymbol || 'BTCUSDT')}`} className="rounded-lg border border-indigo-300/20 bg-indigo-500 px-4 py-2 text-center text-sm font-semibold shadow-[0_10px_24px_rgba(79,70,229,0.3)] transition hover:bg-indigo-400">Open market page</Link>
         <Link href="/chat" className="rounded-lg border border-white/20 px-4 py-2 text-center text-sm transition hover:bg-white/10">Ask AI</Link>
       </div>
 
