@@ -10,5 +10,3 @@ services:
     envVars:
       - key: CORS_ORIGIN
         value: https://see-market.vercel.app
-      - key: FINNHUB_API_KEY
-        sync: false

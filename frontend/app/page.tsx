@@ -39,7 +39,7 @@ export default function HomePage() {
         <div className="panel p-6">
           <h3 className="mb-3 text-sm font-semibold text-slate-200">Platform highlights</h3>
           <ul className="space-y-2 text-sm text-slate-300">
-            <li>• Finnhub-backed market snapshots</li>
+            <li>• yfinance-backed market snapshots</li>
             <li>• Lightweight indicator and risk metrics</li>
             <li>• Simple AI summary output</li>
             <li>• Saved chats and watchlists</li>
