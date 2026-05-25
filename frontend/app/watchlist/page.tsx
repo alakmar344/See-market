@@ -1,50 +1,66 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-
-import { LiveStream } from '@/components/live-stream';
 import { UIButton } from '@/components/ui-button';
-import { addWatchlist, fetchWatchlist, removeWatchlist } from '@/lib/api';
+import { addWatchlist, fetchWatchlist, removeWatchlist, type WatchlistItem } from '@/lib/api';
 
 export default function WatchlistPage() {
   const [symbol, setSymbol] = useState('');
-  const client = useQueryClient();
-  const watchlist = useQuery({ queryKey: ['watchlist'], queryFn: () => fetchWatchlist() });
+  const [items, setItems] = useState<WatchlistItem[]>([]);
+  const [busy, setBusy] = useState(false);
 
-  const add = useMutation({
-    mutationFn: (value: string) => addWatchlist(value),
-    onSuccess: () => client.invalidateQueries({ queryKey: ['watchlist'] }),
-  });
-  const remove = useMutation({
-    mutationFn: (value: string) => removeWatchlist(value),
-    onSuccess: () => client.invalidateQueries({ queryKey: ['watchlist'] }),
-  });
+  const refresh = async () => {
+    const list = await fetchWatchlist();
+    setItems(list.items);
+  };
 
-  const firstSymbol = watchlist.data?.items?.[0]?.symbol ?? 'BTCUSDT';
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const onAdd = async () => {
+    const clean = symbol.trim();
+    if (!clean) return;
+    setBusy(true);
+    try {
+      await addWatchlist(clean);
+      setSymbol('');
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onRemove = async (value: string) => {
+    setBusy(true);
+    try {
+      await removeWatchlist(value);
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <section className="space-y-4">
-      <div className="panel flex gap-2 p-4">
-        <input className="flex-1" placeholder="Add symbol" value={symbol} onChange={(e) => setSymbol(e.target.value)} />
-        <UIButton onClick={() => { if (symbol.trim()) add.mutate(symbol.trim()); setSymbol(''); }} disabled={add.isPending}>Add</UIButton>
+      <div className="panel flex flex-col gap-2 p-4 sm:flex-row">
+        <input className="flex-1" placeholder="Add symbol" value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} />
+        <UIButton onClick={onAdd} disabled={busy}>Add</UIButton>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
-        {(watchlist.data?.items ?? []).map((item) => (
-          <div key={item.id} className="panel flex items-center justify-between p-4">
+        {items.map((item) => (
+          <div key={item.id} className="panel flex items-center justify-between gap-3 p-4">
             <div>
               <p className="font-semibold">{item.symbol}</p>
               <Link className="text-xs text-indigo-300" href={`/markets/${item.symbol}`}>Open market page</Link>
             </div>
-            <UIButton onClick={() => remove.mutate(item.symbol)} className="bg-rose-500 hover:bg-rose-400">Remove</UIButton>
+            <UIButton onClick={() => onRemove(item.symbol)} className="bg-rose-500 hover:bg-rose-400" disabled={busy}>Remove</UIButton>
           </div>
         ))}
       </div>
-
-      <LiveStream symbol={firstSymbol} />
     </section>
   );
 }

@@ -1,41 +1,69 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { LiveChart } from '@/components/live-chart';
+import type { AssetType, MarketSnapshot, MoverItem } from '@/lib/api';
 import { fetchMarket, fetchMovers, fetchTrending } from '@/lib/api';
 
 export default function DashboardPage() {
-  const [symbol, setSymbol] = useState('BTCUSDT');
-  const [assetType, setAssetType] = useState<'stock' | 'crypto'>('crypto');
-  const safeSymbol = symbol.replace(/[^A-Z0-9._-]/g, '');
+  const [symbol, setSymbol] = useState('AAPL');
+  const [assetType, setAssetType] = useState<AssetType>('stock');
+  const [data, setData] = useState<MarketSnapshot | null>(null);
+  const [movers, setMovers] = useState<MoverItem[]>([]);
+  const [trending, setTrending] = useState<MoverItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const { data, isLoading, error } = useQuery({ queryKey: ['dashboard', symbol, assetType], queryFn: () => fetchMarket(symbol, assetType) });
-  const movers = useQuery({ queryKey: ['movers', assetType], queryFn: () => fetchMovers(assetType) });
-  const trending = useQuery({ queryKey: ['trending', assetType], queryFn: () => fetchTrending(assetType) });
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError('');
 
-  if (isLoading) return <div className="panel h-48 animate-pulse p-4" />;
-  if (error || !data) return <div className="panel p-4 text-red-300">Could not load dashboard data.</div>;
+    Promise.all([fetchMarket(symbol, assetType), fetchMovers(assetType), fetchTrending(assetType)])
+      .then(([market, moversRes, trendingRes]) => {
+        if (!active) return;
+        setData(market);
+        setMovers(moversRes.items);
+        setTrending(trendingRes.items);
+      })
+      .catch(() => {
+        if (!active) return;
+        setError('Could not load dashboard data.');
+      })
+      .finally(() => {
+        if (!active) return;
+        setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [assetType, symbol]);
+
+  const safeSymbol = symbol.replace(/[^A-Z0-9._-]/g, '') || 'AAPL';
+
+  if (loading) return <div className="panel h-48 animate-pulse p-4" />;
+  if (error || !data) return <div className="panel p-4 text-red-300">{error || 'Could not load dashboard data.'}</div>;
 
   return (
-    <section className="space-y-5">
-      <div className="panel grid gap-3 p-4 md:grid-cols-5">
-        <input className="md:col-span-2" value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} placeholder="Search symbol" />
-        <select value={assetType} onChange={(e) => setAssetType(e.target.value as 'stock' | 'crypto')}>
-          <option value="crypto">Crypto</option>
+    <section className="space-y-4 sm:space-y-5">
+      <div className="panel grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
+        <input className="sm:col-span-2" value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} placeholder="Search symbol" />
+        <select value={assetType} onChange={(e) => setAssetType(e.target.value as AssetType)}>
           <option value="stock">Stock</option>
+          <option value="crypto">Crypto</option>
         </select>
-        <Link href={`/markets/${encodeURIComponent(safeSymbol || 'BTCUSDT')}`} className="rounded-lg border border-indigo-300/20 bg-indigo-500 px-4 py-2 text-center text-sm font-semibold shadow-[0_10px_24px_rgba(79,70,229,0.3)] transition hover:bg-indigo-400">Open market page</Link>
+        <Link href={`/markets/${encodeURIComponent(safeSymbol)}`} className="rounded-lg border border-indigo-300/20 bg-indigo-500 px-4 py-2 text-center text-sm font-semibold shadow-[0_10px_24px_rgba(79,70,229,0.3)] transition hover:bg-indigo-400">Open market</Link>
         <Link href="/chat" className="rounded-lg border border-white/20 px-4 py-2 text-center text-sm transition hover:bg-white/10">Ask AI</Link>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="panel p-4"><p className="text-xs uppercase tracking-wide text-slate-400">Price</p><p className="text-xl font-semibold">{data.price}</p></div>
-        <div className="panel p-4"><p className="text-xs uppercase tracking-wide text-slate-400">24h Change</p><p className="text-xl font-semibold">{data.change_pct}%</p></div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="panel p-4"><p className="text-xs uppercase tracking-wide text-slate-400">Price</p><p className="text-xl font-semibold">{data.price.toFixed(2)}</p></div>
+        <div className="panel p-4"><p className="text-xs uppercase tracking-wide text-slate-400">Change</p><p className="text-xl font-semibold">{data.change_pct.toFixed(2)}%</p></div>
         <div className="panel p-4"><p className="text-xs uppercase tracking-wide text-slate-400">Sentiment</p><p className="text-xl font-semibold capitalize">{data.sentiment.label}</p></div>
-        <div className="panel p-4"><p className="text-xs uppercase tracking-wide text-slate-400">Risk Regime</p><p className="text-xl font-semibold">{data.risk.market_regime ?? 'n/a'}</p></div>
+        <div className="panel p-4"><p className="text-xs uppercase tracking-wide text-slate-400">Regime</p><p className="text-xl font-semibold">{data.risk.market_regime ?? 'n/a'}</p></div>
       </div>
 
       <LiveChart series={data.history} />
@@ -44,7 +72,7 @@ export default function DashboardPage() {
         <div className="panel p-4">
           <h3 className="mb-3 text-sm font-semibold">Market movers</h3>
           <div className="space-y-2 text-sm">
-            {(movers.data?.items ?? []).slice(0, 6).map((item) => (
+            {movers.slice(0, 6).map((item) => (
               <div key={item.symbol} className="flex items-center justify-between rounded border border-white/10 px-3 py-2">
                 <span>{item.symbol}</span>
                 <span className={item.change_pct >= 0 ? 'text-emerald-300' : 'text-rose-300'}>{item.change_pct.toFixed(2)}%</span>
@@ -53,9 +81,9 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="panel p-4">
-          <h3 className="mb-3 text-sm font-semibold">Trending heatmap</h3>
+          <h3 className="mb-3 text-sm font-semibold">Trending</h3>
           <div className="grid grid-cols-2 gap-2 text-xs">
-            {(trending.data?.items ?? []).slice(0, 8).map((item) => (
+            {trending.slice(0, 8).map((item) => (
               <div key={item.symbol} className={`rounded p-3 ${item.change_pct >= 0 ? 'bg-emerald-500/20' : 'bg-rose-500/20'}`}>
                 <p className="font-semibold">{item.symbol}</p>
                 <p>{item.change_pct.toFixed(2)}%</p>

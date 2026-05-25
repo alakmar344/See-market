@@ -1,46 +1,30 @@
 # See-market
 
-Production-grade AI-powered financial market analysis platform.
+Simplified market analysis platform with a Next.js frontend and a lightweight Node.js backend.
 
 ## Stack
 
-- **Frontend**: Next.js 15 (App Router), TypeScript, TailwindCSS, Zustand, React Query, Lightweight Charts, Framer Motion
-- **Backend**: FastAPI, asyncio, WebSockets, SQLAlchemy + SQLite, Pandas/Numpy, scikit-learn, ta-lib
-- **AI**: Google AI Studio Gemma (`gemma-4-31b-it`) with backend-validated market context
+- **Frontend**: Next.js 15, TypeScript, TailwindCSS
+- **Backend**: Node.js + Express (JavaScript)
+- **Market data**: Yahoo Finance public endpoints
 
 ## Repository layout
 
-- `frontend/` – dashboard, market pages, AI chat, watchlist, onboarding
-- `backend/` – API, providers, indicator/risk/sentiment engines, websocket streaming, cache
+- `frontend/` – dashboard, market pages, AI chat, watchlist
+- `backend/` – Express API with simple file-based persistence
 - `docs/architecture.md` – architecture overview
-- `Dockerfile` + `render.yaml` – Render deployment
+- `Dockerfile` + `render.yaml` – deployment settings
 
-## Environment variables (exact)
+## Environment variables
 
 ### Backend (`backend/.env`)
 
-Required:
-
-- `GOOGLE_API_KEY`
-
-Optional (with defaults):
-
-- `APP_ENV=production`
-- `DATABASE_URL=sqlite+aiosqlite:///./see_market.db`
-- `CACHE_DIR=./cache`
-- `GEMMA_MODEL=gemma-4-31b-it`
-- `BINANCE_API_KEY=` (optional provider key)
-- `BINANCE_SECRET=` (optional provider secret)
-- `FINNHUB_API_KEY=` (optional provider key)
-- `ALPHAVANTAGE_API_KEY=` (optional provider key)
-- `CORS_ORIGINS=["http://localhost:3000"]`
+- `PORT=8000`
+- `CORS_ORIGIN=https://see-market.vercel.app`
 
 ### Frontend (`frontend/.env.local`)
 
-Optional (with defaults):
-
 - `NEXT_PUBLIC_API_URL=http://localhost:8000`
-- `NEXT_PUBLIC_WS_URL=ws://localhost:8000`
 
 ## Local setup
 
@@ -48,16 +32,14 @@ Optional (with defaults):
 
 ```bash
 cd backend
-cp .env.example .env
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+npm install
+npm run dev
 ```
 
 ### Frontend
 
 ```bash
 cd frontend
-cp .env.local.example .env.local
 npm install
 npm run dev
 ```
@@ -71,17 +53,3 @@ npm run dev
 - `POST /api/v1/chat/analyze`
 - `GET /api/v1/chat/saved`
 - `GET|POST|DELETE /api/v1/watchlist`
-- `WS /api/v1/chat/stream/{channel}`
-
-## Security defaults
-
-- Strict CORS origin allowlist
-- Request sanitization + Pydantic validation
-- CSRF middleware for state-changing requests
-- Rate limiting middleware
-- Security headers middleware
-
-## Deployment
-
-- Frontend is Vercel-compatible (`next build` / `next start`)
-- Backend is Render-compatible with included `Dockerfile` and `render.yaml`

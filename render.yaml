@@ -1,14 +1,12 @@
 services:
   - type: web
     name: see-market-backend
-    env: docker
-    dockerfilePath: ./Dockerfile
+    env: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
     autoDeploy: true
     healthCheckPath: /health
     envVars:
-      - key: APP_ENV
-        value: production
-      - key: DATABASE_URL
-        value: sqlite+aiosqlite:///./see_market.db
-      - key: GEMMA_MODEL
-        value: gemma-4-31b-it
+      - key: CORS_ORIGIN
+        value: https://see-market.vercel.app
