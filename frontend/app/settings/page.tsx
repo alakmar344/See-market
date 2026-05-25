@@ -13,7 +13,7 @@ export default function SettingsPage() {
         <span>Dark mode</span>
         <button className="rounded bg-indigo-500 px-3 py-1" onClick={toggleDarkMode}>{darkMode ? 'On' : 'Off'}</button>
       </label>
-      <p className="text-xs text-slate-400">Security defaults and cookies are enforced by backend middleware and JWT auth endpoints.</p>
+      <p className="text-xs text-slate-400">Security defaults are enforced by backend middleware (CORS, CSRF, rate limiting, and security headers).</p>
     </section>
   );
 }

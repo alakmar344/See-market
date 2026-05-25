@@ -4,7 +4,7 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth, chat, health, markets, watchlist
+from app.api.routes import chat, health, markets, watchlist
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.init import init_db
@@ -41,7 +41,6 @@ app.add_middleware(RateLimitMiddleware)
 app.add_middleware(MonitoringMiddleware)
 
 app.include_router(health.router)
-app.include_router(auth.router, prefix=settings.api_v1_prefix)
 app.include_router(markets.router, prefix=settings.api_v1_prefix)
 app.include_router(chat.router, prefix=settings.api_v1_prefix)
 app.include_router(watchlist.router, prefix=settings.api_v1_prefix)

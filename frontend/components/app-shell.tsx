@@ -19,22 +19,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={dark ? 'dark' : ''}>
-      <div className="min-h-screen bg-gradient-to-br from-black via-slate-950 to-slate-900 text-slate-100">
-        <header className="sticky top-0 z-30 border-b border-white/10 bg-black/60 backdrop-blur-md">
-          <nav className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-            <h1 className="mr-4 text-sm font-semibold tracking-widest text-indigo-300">SEE-MARKET</h1>
+      <div className="min-h-screen text-slate-100">
+        <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/65 backdrop-blur-xl">
+          <nav className="mx-auto flex max-w-7xl items-center gap-2 px-4 py-3">
+            <h1 className="mr-3 rounded-full border border-cyan-300/25 bg-cyan-400/10 px-3 py-1 text-xs font-semibold tracking-[0.2em] text-cyan-200">SEE-MARKET</h1>
             {links.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`rounded-md px-3 py-1.5 text-sm transition ${pathname === link.href ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/5'}`}
+                className={`rounded-full px-3 py-1.5 text-sm transition ${pathname === link.href ? 'bg-white/15 text-white shadow-inner' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}
               >
                 {link.label}
               </Link>
             ))}
           </nav>
         </header>
-        <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
+        <main className="mx-auto max-w-7xl px-4 py-8">{children}</main>
       </div>
     </div>
   );
