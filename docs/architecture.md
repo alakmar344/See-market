@@ -5,7 +5,7 @@
 See-market is split into:
 
 - `frontend/`: Next.js 15 App Router client for dashboard, chat, watchlist, settings
-- `backend/`: FastAPI async service for market intelligence, AI reasoning, auth, and realtime streams
+- `backend/`: FastAPI async service for market intelligence, AI reasoning, and realtime streams
 
 ## Core backend pipeline
 

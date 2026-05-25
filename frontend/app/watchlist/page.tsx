@@ -28,7 +28,7 @@ export default function WatchlistPage() {
   return (
     <section className="space-y-4">
       <div className="panel flex gap-2 p-4">
-        <input className="flex-1 rounded border border-white/20 bg-black/40 px-3 py-2 text-sm" placeholder="Add symbol" value={symbol} onChange={(e) => setSymbol(e.target.value)} />
+        <input className="flex-1" placeholder="Add symbol" value={symbol} onChange={(e) => setSymbol(e.target.value)} />
         <UIButton onClick={() => { if (symbol.trim()) add.mutate(symbol.trim()); setSymbol(''); }} disabled={add.isPending}>Add</UIButton>
       </div>
 

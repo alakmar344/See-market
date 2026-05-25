@@ -10,6 +10,7 @@ import { fetchMarket, fetchMovers, fetchTrending } from '@/lib/api';
 export default function DashboardPage() {
   const [symbol, setSymbol] = useState('BTCUSDT');
   const [assetType, setAssetType] = useState<'stock' | 'crypto'>('crypto');
+  const safeSymbol = symbol.replace(/[^A-Z0-9._-]/g, '');
 
   const { data, isLoading, error } = useQuery({ queryKey: ['dashboard', symbol, assetType], queryFn: () => fetchMarket(symbol, assetType) });
   const movers = useQuery({ queryKey: ['movers', assetType], queryFn: () => fetchMovers(assetType) });
@@ -19,22 +20,22 @@ export default function DashboardPage() {
   if (error || !data) return <div className="panel p-4 text-red-300">Could not load dashboard data.</div>;
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-5">
       <div className="panel grid gap-3 p-4 md:grid-cols-5">
-        <input className="rounded border border-white/20 bg-black/40 px-3 py-2 text-sm md:col-span-2" value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} placeholder="Search symbol" />
-        <select className="rounded border border-white/20 bg-black/40 px-3 py-2 text-sm" value={assetType} onChange={(e) => setAssetType(e.target.value as 'stock' | 'crypto')}>
+        <input className="md:col-span-2" value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} placeholder="Search symbol" />
+        <select value={assetType} onChange={(e) => setAssetType(e.target.value as 'stock' | 'crypto')}>
           <option value="crypto">Crypto</option>
           <option value="stock">Stock</option>
         </select>
-        <Link href={`/markets/${symbol}`} className="rounded bg-indigo-500 px-4 py-2 text-center text-sm font-semibold">Open market page</Link>
-        <Link href="/chat" className="rounded border border-white/20 px-4 py-2 text-center text-sm">Ask AI</Link>
+        <Link href={`/markets/${encodeURIComponent(safeSymbol || 'BTCUSDT')}`} className="rounded-lg border border-indigo-300/20 bg-indigo-500 px-4 py-2 text-center text-sm font-semibold shadow-[0_10px_24px_rgba(79,70,229,0.3)] transition hover:bg-indigo-400">Open market page</Link>
+        <Link href="/chat" className="rounded-lg border border-white/20 px-4 py-2 text-center text-sm transition hover:bg-white/10">Ask AI</Link>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <div className="panel p-4"><p className="text-xs text-slate-400">Price</p><p className="text-xl font-semibold">{data.price}</p></div>
-        <div className="panel p-4"><p className="text-xs text-slate-400">24h Change</p><p className="text-xl font-semibold">{data.change_pct}%</p></div>
-        <div className="panel p-4"><p className="text-xs text-slate-400">Sentiment</p><p className="text-xl font-semibold capitalize">{data.sentiment.label}</p></div>
-        <div className="panel p-4"><p className="text-xs text-slate-400">Risk Regime</p><p className="text-xl font-semibold">{data.risk.market_regime ?? 'n/a'}</p></div>
+        <div className="panel p-4"><p className="text-xs uppercase tracking-wide text-slate-400">Price</p><p className="text-xl font-semibold">{data.price}</p></div>
+        <div className="panel p-4"><p className="text-xs uppercase tracking-wide text-slate-400">24h Change</p><p className="text-xl font-semibold">{data.change_pct}%</p></div>
+        <div className="panel p-4"><p className="text-xs uppercase tracking-wide text-slate-400">Sentiment</p><p className="text-xl font-semibold capitalize">{data.sentiment.label}</p></div>
+        <div className="panel p-4"><p className="text-xs uppercase tracking-wide text-slate-400">Risk Regime</p><p className="text-xl font-semibold">{data.risk.market_regime ?? 'n/a'}</p></div>
       </div>
 
       <LiveChart series={data.history} />

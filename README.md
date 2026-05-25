@@ -11,9 +11,36 @@ Production-grade AI-powered financial market analysis platform.
 ## Repository layout
 
 - `frontend/` – dashboard, market pages, AI chat, watchlist, onboarding
-- `backend/` – API, providers, indicator/risk/sentiment engines, auth, websocket streaming, cache
+- `backend/` – API, providers, indicator/risk/sentiment engines, websocket streaming, cache
 - `docs/architecture.md` – architecture overview
 - `Dockerfile` + `render.yaml` – Render deployment
+
+## Environment variables (exact)
+
+### Backend (`backend/.env`)
+
+Required:
+
+- `GOOGLE_API_KEY`
+
+Optional (with defaults):
+
+- `APP_ENV=production`
+- `DATABASE_URL=sqlite+aiosqlite:///./see_market.db`
+- `CACHE_DIR=./cache`
+- `GEMMA_MODEL=gemma-4-31b-it`
+- `BINANCE_API_KEY=` (optional provider key)
+- `BINANCE_SECRET=` (optional provider secret)
+- `FINNHUB_API_KEY=` (optional provider key)
+- `ALPHAVANTAGE_API_KEY=` (optional provider key)
+- `CORS_ORIGINS=["http://localhost:3000"]`
+
+### Frontend (`frontend/.env.local`)
+
+Optional (with defaults):
+
+- `NEXT_PUBLIC_API_URL=http://localhost:8000`
+- `NEXT_PUBLIC_WS_URL=ws://localhost:8000`
 
 ## Local setup
 
@@ -38,9 +65,6 @@ npm run dev
 ## API overview
 
 - `GET /health`
-- `POST /api/v1/auth/signup`
-- `POST /api/v1/auth/login`
-- `POST /api/v1/auth/forgot-password`
 - `GET /api/v1/markets/{symbol}`
 - `GET /api/v1/markets/trending/list`
 - `GET /api/v1/markets/movers/list`
@@ -56,7 +80,6 @@ npm run dev
 - CSRF middleware for state-changing requests
 - Rate limiting middleware
 - Security headers middleware
-- JWT auth + secure cookies + account lockout
 
 ## Deployment
 

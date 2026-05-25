@@ -5,7 +5,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
-CSRF_EXEMPT_PREFIXES = {"/health", "/api/v1/auth/login", "/api/v1/auth/signup", "/api/v1/auth/forgot-password", "/api/v1/auth/refresh"}
+CSRF_EXEMPT_PREFIXES = {"/health"}
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):

@@ -18,12 +18,12 @@ export default function ChatPage() {
   return (
     <section className="space-y-4">
       <div className="panel grid gap-3 p-4 md:grid-cols-4">
-        <input className="rounded border border-white/20 bg-black/40 px-3 py-2 text-sm" value={symbol} onChange={(e) => setSymbol(e.target.value)} />
-        <select className="rounded border border-white/20 bg-black/40 px-3 py-2 text-sm" value={assetType} onChange={(e) => setAssetType(e.target.value as 'stock' | 'crypto')}>
+        <input value={symbol} onChange={(e) => setSymbol(e.target.value)} />
+        <select value={assetType} onChange={(e) => setAssetType(e.target.value as 'stock' | 'crypto')}>
           <option value="crypto">Crypto</option>
           <option value="stock">Stock</option>
         </select>
-        <input className="rounded border border-white/20 bg-black/40 px-3 py-2 text-sm md:col-span-2" value={question} onChange={(e) => setQuestion(e.target.value)} />
+        <input className="md:col-span-2" value={question} onChange={(e) => setQuestion(e.target.value)} />
         <UIButton onClick={() => analyze.mutate()} disabled={analyze.isPending}>{analyze.isPending ? 'Analyzing...' : 'Ask AI'}</UIButton>
       </div>
 

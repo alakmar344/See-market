@@ -13,12 +13,6 @@ class Settings(BaseSettings):
     app_name: str = "See-market API"
     api_v1_prefix: str = "/api/v1"
 
-    secret_key: str = Field(alias="SECRET_KEY")
-    jwt_secret: str = Field(alias="JWT_SECRET")
-    jwt_algorithm: str = "HS256"
-    access_token_minutes: int = 30
-    refresh_token_minutes: int = 60 * 24 * 7
-
     database_url: str = Field(default="sqlite+aiosqlite:///./see_market.db", alias="DATABASE_URL")
     cache_dir: str = Field(default="./cache", alias="CACHE_DIR")
 
