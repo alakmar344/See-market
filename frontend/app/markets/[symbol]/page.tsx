@@ -1,15 +1,17 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { useParams } from 'next/navigation';
 
 import { AIResponse } from '@/components/ai-response';
 import { fetchMarket } from '@/lib/api';
 
-export default function MarketDetailsPage({ params }: { params: { symbol: string } }) {
-  const symbol = params.symbol.toUpperCase();
+export default function MarketDetailsPage() {
+  const params = useParams<{ symbol: string }>();
+  const symbol = (params?.symbol ?? 'AAPL').toUpperCase();
   const { data, isLoading } = useQuery({ queryKey: ['market', symbol], queryFn: () => fetchMarket(symbol, 'stock') });
 
-  if (isLoading) return <div className="panel h-40 animate-pulse" />;
+  if (isLoading || !data) return <div className="panel h-40 animate-pulse" />;
 
   return (
     <section className="grid gap-4 lg:grid-cols-3">

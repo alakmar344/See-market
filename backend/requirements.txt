@@ -9,9 +9,9 @@ redis==5.2.1
 httpx==0.28.1
 pandas==2.2.3
 numpy==2.2.1
-ta-lib==0.4.32
+TA-Lib==0.6.5
 scikit-learn==1.6.0
-python-jose==3.3.0
+python-jose==3.4.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.2.1
 tenacity==9.0.0
@@ -19,6 +19,6 @@ orjson==3.10.12
 structlog==24.4.0
 python-multipart==0.0.20
 email-validator==2.2.0
-transformers==4.47.1
+transformers==4.48.0
 pytest==8.3.4
 pytest-asyncio==0.25.0
