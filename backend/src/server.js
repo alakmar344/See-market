@@ -13,10 +13,34 @@ const chatsPath = path.join(dataDir, 'chats.json');
 const app = express();
 const port = Number(process.env.PORT || 8000);
 const corsOrigin = process.env.CORS_ORIGIN || 'https://see-market.vercel.app';
+let requestCounter = 0;
 
 app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+app.use((req, res, next) => {
+  const requestId = `req-${Date.now()}-${++requestCounter}`;
+  const startedAt = Date.now();
+  req.requestId = requestId;
+  console.log('[server][request:start]', {
+    requestId,
+    method: req.method,
+    path: req.path,
+    query: req.query,
+    body: req.body
+  });
+
+  res.on('finish', () => {
+    console.log('[server][request:finish]', {
+      requestId,
+      method: req.method,
+      path: req.path,
+      statusCode: res.statusCode,
+      durationMs: Date.now() - startedAt
+    });
+  });
+  next();
+});
 
 function ensureDataFile(filePath) {
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
@@ -56,16 +80,21 @@ function yahooSymbol(symbol, assetType) {
 }
 
 async function fetchYahooQuote(symbol) {
+  console.log('[provider][quote:start]', { symbol });
   const response = await fetch(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`);
   const payload = await response.json();
+  console.log('[provider][quote:response]', { symbol, ok: response.ok, status: response.status });
   const quote = payload?.quoteResponse?.result?.[0];
   if (!quote) throw new Error('Quote unavailable');
+  console.log('[provider][quote:success]', { symbol, marketPrice: Number(quote.regularMarketPrice ?? 0) });
   return quote;
 }
 
 async function fetchYahooHistory(symbol) {
+  console.log('[provider][history:start]', { symbol });
   const response = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1h&range=1mo`);
   const payload = await response.json();
+  console.log('[provider][history:response]', { symbol, ok: response.ok, status: response.status });
   const result = payload?.chart?.result?.[0];
   const closes = result?.indicators?.quote?.[0]?.close ?? [];
   const timestamps = result?.timestamp ?? [];
@@ -79,6 +108,7 @@ async function fetchYahooHistory(symbol) {
   }
 
   if (history.length < 2) throw new Error('History unavailable');
+  console.log('[provider][history:success]', { symbol, points: history.length });
   return history.slice(-120);
 }
 
@@ -134,6 +164,7 @@ async function buildAnalysis({ symbol, question, assetType }) {
   const safeQuestion = sanitizeText(question || 'Market snapshot') || 'Market snapshot';
   const safeAssetType = assetType === 'crypto' ? 'crypto' : 'stock';
   const ySymbol = yahooSymbol(safeSymbol, safeAssetType);
+  console.log('[analysis][build:start]', { safeSymbol, safeAssetType, ySymbol });
 
   const [quote, history] = await Promise.all([fetchYahooQuote(ySymbol), fetchYahooHistory(ySymbol)]);
   const values = history.map((item) => item.value);
@@ -143,6 +174,14 @@ async function buildAnalysis({ symbol, question, assetType }) {
   const resistance = Math.max(...values.slice(-30));
   const riskScore = computeRiskScore(values);
   const changePct = Number(quote.regularMarketChangePercent ?? 0);
+  console.log('[analysis][build:success]', {
+    safeSymbol,
+    safeAssetType,
+    points: values.length,
+    price: Number(quote.regularMarketPrice ?? 0),
+    changePct,
+    riskScore
+  });
 
   return {
     symbol: safeSymbol,
@@ -172,17 +211,20 @@ async function buildAnalysis({ symbol, question, assetType }) {
 }
 
 async function marketMovers(assetType) {
+  console.log('[movers][start]', { assetType });
   const symbols = assetType === 'crypto'
     ? ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD', 'XRP-USD', 'DOGE-USD', 'ADA-USD', 'AVAX-USD']
     : ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'META', 'GOOGL', 'AMD'];
 
   const response = await fetch(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols.join(',')}`);
   const payload = await response.json();
+  console.log('[movers][response]', { assetType, ok: response.ok, status: response.status });
   const items = (payload?.quoteResponse?.result ?? []).map((q) => ({
     symbol: assetType === 'crypto' ? String(q.symbol || '').replace('-USD', 'USDT') : String(q.symbol || ''),
     change_pct: Number(q.regularMarketChangePercent ?? 0),
     price: Number(q.regularMarketPrice ?? 0)
   }));
+  console.log('[movers][success]', { assetType, count: items.length });
   return items.sort((a, b) => Math.abs(b.change_pct) - Math.abs(a.change_pct));
 }
 
@@ -192,6 +234,7 @@ app.get('/health', (_req, res) => {
 
 app.get('/api/v1/markets/:symbol', async (req, res) => {
   try {
+    console.log('[route][markets:get]', { requestId: req.requestId, symbol: req.params.symbol, query: req.query });
     const assetType = sanitizeText(req.query.asset_type || 'stock').toLowerCase();
     const analysis = await buildAnalysis({
       symbol: req.params.symbol,
@@ -200,17 +243,20 @@ app.get('/api/v1/markets/:symbol', async (req, res) => {
     });
     res.json(analysis);
   } catch (error) {
+    console.error('[route][markets:error]', { requestId: req.requestId, error });
     res.status(502).json({ detail: `Market provider failure: ${error.message}` });
   }
 });
 
 app.get('/api/v1/markets/trending/list', async (req, res) => {
+  console.log('[route][trending:get]', { requestId: req.requestId, query: req.query });
   const assetType = sanitizeText(req.query.asset_type || 'stock').toLowerCase();
   const items = await marketMovers(assetType === 'crypto' ? 'crypto' : 'stock');
   res.json({ items: items.slice(0, 8) });
 });
 
 app.get('/api/v1/markets/movers/list', async (req, res) => {
+  console.log('[route][movers:get]', { requestId: req.requestId, query: req.query });
   const assetType = sanitizeText(req.query.asset_type || 'stock').toLowerCase();
   const items = await marketMovers(assetType === 'crypto' ? 'crypto' : 'stock');
   res.json({ items: items.slice(0, 10) });
@@ -218,6 +264,7 @@ app.get('/api/v1/markets/movers/list', async (req, res) => {
 
 app.post('/api/v1/chat/analyze', async (req, res) => {
   try {
+    console.log('[route][chat:analyze:start]', { requestId: req.requestId, body: req.body });
     const symbol = req.body.symbol || 'AAPL';
     const question = req.body.question || 'Market snapshot';
     const assetType = sanitizeText(req.body.asset_type || 'stock').toLowerCase();
@@ -241,20 +288,24 @@ app.post('/api/v1/chat/analyze', async (req, res) => {
     });
     writeJson(chatsPath, chats.slice(0, 200));
 
+    console.log('[route][chat:analyze:success]', { requestId: req.requestId, symbol: context.symbol, userId });
     res.json({ context, analysis });
   } catch (error) {
+    console.error('[route][chat:analyze:error]', { requestId: req.requestId, error });
     res.status(502).json({ detail: `Analysis failed: ${error.message}` });
   }
 });
 
 app.get('/api/v1/chat/saved', (req, res) => {
   const userId = Number(req.query.user_id || 1);
+  console.log('[route][chat:saved:get]', { requestId: req.requestId, userId });
   const chats = readJson(chatsPath);
   res.json({ items: chats.filter((item) => item.user_id === userId) });
 });
 
 app.get('/api/v1/watchlist', (req, res) => {
   const userId = Number(req.query.user_id || 1);
+  console.log('[route][watchlist:get]', { requestId: req.requestId, userId });
   const rows = readJson(watchlistPath);
   res.json({ items: rows.filter((item) => item.user_id === userId) });
 });
@@ -262,6 +313,7 @@ app.get('/api/v1/watchlist', (req, res) => {
 app.post('/api/v1/watchlist', (req, res) => {
   const symbol = normalizeSymbol(req.body.symbol);
   const userId = Number(req.body.user_id || 1);
+  console.log('[route][watchlist:add:start]', { requestId: req.requestId, symbol, userId });
   if (!symbol) return res.status(400).json({ detail: 'Symbol is required' });
 
   const rows = readJson(watchlistPath);
@@ -273,12 +325,14 @@ app.post('/api/v1/watchlist', (req, res) => {
   const item = { id: Date.now(), user_id: userId, symbol, created_at: new Date().toISOString() };
   rows.unshift(item);
   writeJson(watchlistPath, rows);
+  console.log('[route][watchlist:add:success]', { requestId: req.requestId, symbol, userId });
   return res.json({ id: item.id, symbol: item.symbol });
 });
 
 app.delete('/api/v1/watchlist/:symbol', (req, res) => {
   const symbol = normalizeSymbol(req.params.symbol);
   const userId = Number(req.query.user_id || 1);
+  console.log('[route][watchlist:remove]', { requestId: req.requestId, symbol, userId });
   const rows = readJson(watchlistPath);
   const filtered = rows.filter((item) => !(item.user_id === userId && item.symbol === symbol));
   writeJson(watchlistPath, filtered);
