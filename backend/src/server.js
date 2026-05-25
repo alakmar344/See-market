@@ -72,6 +72,13 @@ function normalizeSymbol(value) {
 }
 
 const YFINANCE_BASE_URL = 'https://query1.finance.yahoo.com/v8/finance/chart';
+const YAHOO_HEADERS = Object.freeze({
+  Accept: 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  Origin: 'https://finance.yahoo.com',
+  Referer: 'https://finance.yahoo.com/',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
+});
 
 function yfinanceSymbol(symbol, assetType) {
   if (assetType === 'crypto') {
@@ -90,7 +97,7 @@ async function fetchYfinanceChart(symbol, params = {}) {
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value));
   });
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), { headers: YAHOO_HEADERS });
   const payload = await response.json();
   if (!response.ok) throw new Error(`yfinance request failed (${response.status})`);
   const result = payload?.chart?.result?.[0];
@@ -100,38 +107,7 @@ async function fetchYfinanceChart(symbol, params = {}) {
   return result;
 }
 
-async function fetchYfinanceQuote(symbol) {
-  console.log('[provider][quote:start]', { symbol });
-  const payload = await fetchYfinanceChart(symbol, {
-    range: '1d',
-    interval: '1m',
-    includePrePost: 'false',
-    events: 'div,splits'
-  });
-  const closes = payload?.indicators?.quote?.[0]?.close ?? [];
-  const volumes = payload?.indicators?.quote?.[0]?.volume ?? [];
-  const fallbackPrice = [...closes].reverse().find((value) => Number.isFinite(Number(value)));
-  const marketPrice = Number(payload?.meta?.regularMarketPrice ?? payload?.meta?.previousClose ?? fallbackPrice ?? 0);
-  if (!Number.isFinite(marketPrice)) throw new Error('Quote unavailable');
-  const previousClose = Number(payload?.meta?.chartPreviousClose ?? payload?.meta?.previousClose ?? marketPrice);
-  const latestVolume = Number([...volumes].reverse().find((value) => Number.isFinite(Number(value))) ?? 0);
-  const quote = {
-    regularMarketPrice: marketPrice,
-    regularMarketChangePercent: previousClose === 0 ? 0 : ((marketPrice - previousClose) / previousClose) * 100,
-    regularMarketVolume: latestVolume
-  };
-  console.log('[provider][quote:success]', { symbol, marketPrice });
-  return quote;
-}
-
-async function fetchYfinanceHistory(symbol) {
-  console.log('[provider][history:start]', { symbol });
-  const payload = await fetchYfinanceChart(symbol, {
-    range: '1mo',
-    interval: '1h',
-    includePrePost: 'false',
-    events: 'div,splits'
-  });
+function buildHistoryFromChart(payload) {
   const closes = payload?.indicators?.quote?.[0]?.close ?? [];
   const timestamps = payload?.timestamp ?? [];
   const volumes = payload?.indicators?.quote?.[0]?.volume ?? [];
@@ -143,10 +119,40 @@ async function fetchYfinanceHistory(symbol) {
     if (!Number.isFinite(close) || !Number.isFinite(ts)) continue;
     history.push({ time: new Date(ts * 1000).toISOString(), value: close, volume });
   }
-
-  if (history.length < 2) throw new Error('History unavailable');
-  console.log('[provider][history:success]', { symbol, points: history.length });
   return history.slice(-120);
+}
+
+function buildQuoteFromChart(payload, history) {
+  const latestHistoryPoint = history.at(-1);
+  const latestPrice = Number(payload?.meta?.regularMarketPrice ?? latestHistoryPoint?.value ?? 0);
+  if (!Number.isFinite(latestPrice)) throw new Error('Quote unavailable');
+  const fallbackPrevious = history.at(-2)?.value ?? latestPrice;
+  const previousClose = Number(payload?.meta?.chartPreviousClose ?? payload?.meta?.previousClose ?? fallbackPrevious);
+  const latestVolume = Number(latestHistoryPoint?.volume ?? 0);
+  return {
+    regularMarketPrice: latestPrice,
+    regularMarketChangePercent: previousClose === 0 ? 0 : ((latestPrice - previousClose) / previousClose) * 100,
+    regularMarketVolume: latestVolume
+  };
+}
+
+async function fetchYfinanceSnapshot(symbol) {
+  console.log('[provider][snapshot:start]', { symbol });
+  const payload = await fetchYfinanceChart(symbol, {
+    range: '1mo',
+    interval: '1h',
+    includePrePost: 'false',
+    events: 'div,splits'
+  });
+  const history = buildHistoryFromChart(payload);
+  if (history.length < 2) throw new Error('History unavailable');
+  const quote = buildQuoteFromChart(payload, history);
+  console.log('[provider][snapshot:success]', {
+    symbol,
+    marketPrice: quote.regularMarketPrice,
+    points: history.length
+  });
+  return { quote, history };
 }
 
 function ema(values, period) {
@@ -203,23 +209,7 @@ async function buildAnalysis({ symbol, question, assetType }) {
   const providerSymbol = yfinanceSymbol(safeSymbol, safeAssetType);
   console.log('[analysis][build:start]', { safeSymbol, safeAssetType, providerSymbol });
 
-  let quote;
-  let history;
-  if (safeAssetType === 'crypto') {
-    history = await fetchYfinanceHistory(providerSymbol);
-    const values = history.map((item) => item.value);
-    const latest = values.at(-1) ?? 0;
-    const previous = values.at(-2) ?? latest;
-    const changePct = previous === 0 ? 0 : ((latest - previous) / previous) * 100;
-    quote = {
-      regularMarketPrice: latest,
-      regularMarketChangePercent: changePct,
-      regularMarketVolume: Number(history.at(-1)?.volume ?? 0)
-    };
-  } else {
-    [quote, history] = await Promise.all([fetchYfinanceQuote(providerSymbol), fetchYfinanceHistory(providerSymbol)]);
-    quote.regularMarketVolume = Number(history.at(-1)?.volume ?? 0);
-  }
+  const { quote, history } = await fetchYfinanceSnapshot(providerSymbol);
 
   const values = history.map((item) => item.value);
   const rsi = computeRsi(values);
@@ -271,19 +261,8 @@ async function marketMovers(assetType) {
     : ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'META', 'GOOGL', 'AMD'];
 
   const items = await Promise.allSettled(symbols.map(async (symbol) => {
-    if (assetType === 'crypto') {
-      const providerSymbol = yfinanceSymbol(symbol, 'crypto');
-      const history = await fetchYfinanceHistory(providerSymbol);
-      const values = history.map((item) => item.value);
-      const latest = values.at(-1) ?? 0;
-      const previous = values.at(-2) ?? latest;
-      return {
-        symbol,
-        change_pct: previous === 0 ? 0 : ((latest - previous) / previous) * 100,
-        price: latest
-      };
-    }
-    const quote = await fetchYfinanceQuote(symbol);
+    const providerSymbol = yfinanceSymbol(symbol, assetType);
+    const { quote } = await fetchYfinanceSnapshot(providerSymbol);
     return {
       symbol,
       change_pct: Number(quote.regularMarketChangePercent ?? 0),
