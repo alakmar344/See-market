@@ -71,58 +71,70 @@ function normalizeSymbol(value) {
   return sanitizeText(value).toUpperCase();
 }
 
-const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
-const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY || '';
+const YFINANCE_BASE_URL = 'https://query1.finance.yahoo.com/v8/finance/chart';
 
-function finnhubSymbol(symbol, assetType) {
+function yfinanceSymbol(symbol, assetType) {
   if (assetType === 'crypto') {
     const base = symbol.endsWith('USDT')
       ? symbol.slice(0, -4)
       : symbol.endsWith('USD')
         ? symbol.slice(0, -3)
         : symbol;
-    return `BINANCE:${base}USDT`;
+    return `${base}-USD`;
   }
   return symbol;
 }
 
-async function fetchFinnhub(endpoint, params = {}) {
-  if (!FINNHUB_API_KEY) throw new Error('FINNHUB_API_KEY is not configured');
-  const url = new URL(`${FINNHUB_BASE_URL}${endpoint}`);
+async function fetchYfinanceChart(symbol, params = {}) {
+  const url = new URL(`${YFINANCE_BASE_URL}/${encodeURIComponent(symbol)}`);
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value));
   });
-  url.searchParams.set('token', FINNHUB_API_KEY);
   const response = await fetch(url.toString());
   const payload = await response.json();
-  if (!response.ok) throw new Error(`Finnhub request failed (${response.status})`);
-  if (payload?.error) throw new Error(payload.error);
-  return payload;
+  if (!response.ok) throw new Error(`yfinance request failed (${response.status})`);
+  const result = payload?.chart?.result?.[0];
+  if (!result) {
+    throw new Error(payload?.chart?.error?.description || 'Chart unavailable');
+  }
+  return result;
 }
 
-async function fetchFinnhubQuote(symbol) {
+async function fetchYfinanceQuote(symbol) {
   console.log('[provider][quote:start]', { symbol });
-  const payload = await fetchFinnhub('/quote', { symbol });
-  const marketPrice = Number(payload?.c);
+  const payload = await fetchYfinanceChart(symbol, {
+    range: '1d',
+    interval: '1m',
+    includePrePost: 'false',
+    events: 'div,splits'
+  });
+  const closes = payload?.indicators?.quote?.[0]?.close ?? [];
+  const volumes = payload?.indicators?.quote?.[0]?.volume ?? [];
+  const fallbackPrice = [...closes].reverse().find((value) => Number.isFinite(Number(value)));
+  const marketPrice = Number(payload?.meta?.regularMarketPrice ?? payload?.meta?.previousClose ?? fallbackPrice ?? 0);
   if (!Number.isFinite(marketPrice)) throw new Error('Quote unavailable');
+  const previousClose = Number(payload?.meta?.chartPreviousClose ?? payload?.meta?.previousClose ?? marketPrice);
+  const latestVolume = Number([...volumes].reverse().find((value) => Number.isFinite(Number(value))) ?? 0);
   const quote = {
     regularMarketPrice: marketPrice,
-    regularMarketChangePercent: Number(payload?.dp ?? 0),
-    regularMarketVolume: 0
+    regularMarketChangePercent: previousClose === 0 ? 0 : ((marketPrice - previousClose) / previousClose) * 100,
+    regularMarketVolume: latestVolume
   };
   console.log('[provider][quote:success]', { symbol, marketPrice });
   return quote;
 }
 
-async function fetchFinnhubHistory(symbol, assetType) {
+async function fetchYfinanceHistory(symbol) {
   console.log('[provider][history:start]', { symbol });
-  const to = Math.floor(Date.now() / 1000);
-  const from = to - (30 * 24 * 60 * 60);
-  const endpoint = assetType === 'crypto' ? '/crypto/candle' : '/stock/candle';
-  const payload = await fetchFinnhub(endpoint, { symbol, resolution: '60', from, to });
-  const closes = payload?.c ?? [];
-  const timestamps = payload?.t ?? [];
-  const volumes = payload?.v ?? [];
+  const payload = await fetchYfinanceChart(symbol, {
+    range: '1mo',
+    interval: '1h',
+    includePrePost: 'false',
+    events: 'div,splits'
+  });
+  const closes = payload?.indicators?.quote?.[0]?.close ?? [];
+  const timestamps = payload?.timestamp ?? [];
+  const volumes = payload?.indicators?.quote?.[0]?.volume ?? [];
   const history = [];
   for (let i = 0; i < closes.length; i += 1) {
     const close = Number(closes[i]);
@@ -188,13 +200,13 @@ async function buildAnalysis({ symbol, question, assetType }) {
   const safeSymbol = normalizeSymbol(symbol);
   const safeQuestion = sanitizeText(question || 'Market snapshot') || 'Market snapshot';
   const safeAssetType = assetType === 'crypto' ? 'crypto' : 'stock';
-  const providerSymbol = finnhubSymbol(safeSymbol, safeAssetType);
+  const providerSymbol = yfinanceSymbol(safeSymbol, safeAssetType);
   console.log('[analysis][build:start]', { safeSymbol, safeAssetType, providerSymbol });
 
   let quote;
   let history;
   if (safeAssetType === 'crypto') {
-    history = await fetchFinnhubHistory(providerSymbol, 'crypto');
+    history = await fetchYfinanceHistory(providerSymbol);
     const values = history.map((item) => item.value);
     const latest = values.at(-1) ?? 0;
     const previous = values.at(-2) ?? latest;
@@ -205,7 +217,7 @@ async function buildAnalysis({ symbol, question, assetType }) {
       regularMarketVolume: Number(history.at(-1)?.volume ?? 0)
     };
   } else {
-    [quote, history] = await Promise.all([fetchFinnhubQuote(providerSymbol), fetchFinnhubHistory(providerSymbol, 'stock')]);
+    [quote, history] = await Promise.all([fetchYfinanceQuote(providerSymbol), fetchYfinanceHistory(providerSymbol)]);
     quote.regularMarketVolume = Number(history.at(-1)?.volume ?? 0);
   }
 
@@ -260,8 +272,8 @@ async function marketMovers(assetType) {
 
   const items = await Promise.allSettled(symbols.map(async (symbol) => {
     if (assetType === 'crypto') {
-      const providerSymbol = finnhubSymbol(symbol, 'crypto');
-      const history = await fetchFinnhubHistory(providerSymbol, 'crypto');
+      const providerSymbol = yfinanceSymbol(symbol, 'crypto');
+      const history = await fetchYfinanceHistory(providerSymbol);
       const values = history.map((item) => item.value);
       const latest = values.at(-1) ?? 0;
       const previous = values.at(-2) ?? latest;
@@ -271,7 +283,7 @@ async function marketMovers(assetType) {
         price: latest
       };
     }
-    const quote = await fetchFinnhubQuote(symbol);
+    const quote = await fetchYfinanceQuote(symbol);
     return {
       symbol,
       change_pct: Number(quote.regularMarketChangePercent ?? 0),
