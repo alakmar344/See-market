@@ -15,9 +15,9 @@ python-jose==3.4.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.2.1
 tenacity==9.0.0
-orjson==3.10.12
+orjson==3.11.6
 structlog==24.4.0
-python-multipart==0.0.20
+python-multipart==0.0.27
 email-validator==2.2.0
 transformers==4.48.0
 pytest==8.3.4
