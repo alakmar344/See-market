@@ -332,6 +332,31 @@ app.get('/api/v1/markets/movers/list', async (req, res) => {
   res.json({ items: items.slice(0, 10) });
 });
 
+app.get('/api/v1/dashboard/:symbol', async (req, res) => {
+  try {
+    console.log('[route][dashboard:get]', { requestId: req.requestId, symbol: req.params.symbol, query: req.query });
+    const assetType = sanitizeText(req.query.asset_type || 'stock').toLowerCase();
+    const safeAssetType = assetType === 'crypto' ? 'crypto' : 'stock';
+    const [market, items] = await Promise.all([
+      buildAnalysis({
+        symbol: req.params.symbol,
+        question: 'Market snapshot',
+        assetType: safeAssetType
+      }),
+      marketMovers(safeAssetType)
+    ]);
+
+    res.json({
+      market,
+      movers: { items: items.slice(0, 10) },
+      trending: { items: items.slice(0, 8) }
+    });
+  } catch (error) {
+    console.error('[route][dashboard:error]', { requestId: req.requestId, error });
+    res.status(502).json({ detail: `Dashboard data failed: ${error.message}` });
+  }
+});
+
 app.post('/api/v1/chat/analyze', async (req, res) => {
   try {
     console.log('[route][chat:analyze:start]', { requestId: req.requestId, body: req.body });
