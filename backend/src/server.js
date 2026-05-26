@@ -203,6 +203,60 @@ function confidenceLevel(riskScore) {
   return Number((0.5 + normalized * 0.45).toFixed(2));
 }
 
+function computeVerdict(context) {
+  let score = 0;
+  const reasons = [];
+
+  if (context.risk.market_regime === 'bullish') {
+    score += 1;
+    reasons.push('Market is in a bullish regime');
+  } else if (context.risk.market_regime === 'bearish') {
+    score -= 1;
+    reasons.push('Market is in a bearish regime');
+  } else {
+    reasons.push('Market is moving sideways');
+  }
+
+  if (context.sentiment.label === 'positive') {
+    score += 1;
+    reasons.push('Price sentiment is positive');
+  } else {
+    score -= 1;
+    reasons.push('Price sentiment is negative');
+  }
+
+  const rsi = context.indicators.rsi;
+  if (rsi < 30) {
+    score += 1;
+    reasons.push(`RSI oversold at ${rsi.toFixed(1)} — potential reversal upward`);
+  } else if (rsi > 70) {
+    score -= 1;
+    reasons.push(`RSI overbought at ${rsi.toFixed(1)} — risk of pullback`);
+  } else {
+    reasons.push(`RSI neutral at ${rsi.toFixed(1)}`);
+  }
+
+  if (context.indicators.macd > 0) {
+    score += 1;
+    reasons.push('MACD is positive — bullish momentum');
+  } else {
+    score -= 1;
+    reasons.push('MACD is negative — bearish momentum');
+  }
+
+  if (context.risk.risk_score > 60) {
+    score -= 1;
+    reasons.push(`High volatility (risk score ${context.risk.risk_score.toFixed(1)}) — elevated risk`);
+  } else {
+    reasons.push(`Moderate volatility (risk score ${context.risk.risk_score.toFixed(1)})`);
+  }
+
+  return {
+    verdict: score > 0 ? 'buy' : 'no_buy',
+    verdict_reasons: reasons
+  };
+}
+
 async function buildAnalysis({ symbol, question, assetType }) {
   const safeSymbol = normalizeSymbol(symbol);
   const safeQuestion = sanitizeText(question || 'Market snapshot') || 'Market snapshot';
@@ -346,10 +400,13 @@ app.post('/api/v1/chat/analyze', async (req, res) => {
     const userId = Number(req.body.user_id || 1);
 
     const context = await buildAnalysis({ symbol, question, assetType });
+    const { verdict, verdict_reasons } = computeVerdict(context);
     const analysis = {
       summary: `${context.symbol} is in a ${context.risk.market_regime} regime with ${context.sentiment.label} sentiment.`,
       risk_notes: context.risk.explanation,
-      confidence_level: confidenceLevel(context.risk.risk_score)
+      confidence_level: confidenceLevel(context.risk.risk_score),
+      verdict,
+      verdict_reasons
     };
 
     const chats = readJson(chatsPath);
