@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 
-import { AIResponse } from '@/components/ai-response';
+import { AnalysisResponse } from '@/components/analysis-response';
 import { UIButton } from '@/components/ui-button';
-import { askAI, fetchSavedChats, type AssetType, type SavedChatItem } from '@/lib/api';
+import { runAnalysis as callAnalysis, fetchSavedChats, type AssetType, type ChatAnalysis, type MarketSnapshot, type SavedChatItem } from '@/lib/api';
 
 export default function ChatPage() {
   const [symbol, setSymbol] = useState('AAPL');
@@ -13,8 +13,7 @@ export default function ChatPage() {
   const [saved, setSaved] = useState<SavedChatItem[]>([]);
   const [loadingSaved, setLoadingSaved] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
-  const [analysisText, setAnalysisText] = useState('');
-  const [confidence, setConfidence] = useState(0.7);
+  const [analysisResult, setAnalysisResult] = useState<{ context: MarketSnapshot; analysis: ChatAnalysis } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -44,17 +43,15 @@ export default function ChatPage() {
     console.log('[chat][analysis:start]', { symbol, assetType, questionLength: question.length });
     setAnalyzing(true);
     try {
-      const result = await askAI(symbol, question, assetType);
-      console.log('[chat][analysis:success]', { symbol, assetType, analysisKeys: Object.keys(result.analysis ?? {}) });
-      setAnalysisText(JSON.stringify(result.analysis, null, 2));
-      setConfidence(Number(result.analysis.confidence_level ?? 0.7));
+      const result = await callAnalysis(symbol, question, assetType);
+      console.log('[chat][analysis:success]', { symbol, assetType, verdict: result.analysis.verdict });
+      setAnalysisResult(result);
       const savedChats = await fetchSavedChats();
       console.log('[chat][analysis:saved-refresh]', { itemCount: savedChats.items.length });
       setSaved(savedChats.items);
     } catch (error) {
       console.error('[chat][analysis:error]', { error, symbol, assetType });
-      setAnalysisText('Analysis failed. Please retry.');
-      setConfidence(0.2);
+      setAnalysisResult(null);
     } finally {
       console.log('[chat][analysis:done]');
       setAnalyzing(false);
@@ -70,10 +67,12 @@ export default function ChatPage() {
           <option value="crypto">Crypto</option>
         </select>
         <input className="sm:col-span-2" value={question} onChange={(e) => setQuestion(e.target.value)} />
-        <UIButton onClick={runAnalysis} disabled={analyzing}>{analyzing ? 'Analyzing...' : 'Ask AI'}</UIButton>
+        <UIButton onClick={runAnalysis} disabled={analyzing}>{analyzing ? 'Analyzing...' : 'Analyze'}</UIButton>
       </div>
 
-      {analysisText ? <AIResponse content={analysisText} confidence={confidence} /> : <p className="text-sm text-slate-400">Run an analysis to see market reasoning.</p>}
+      {analysisResult
+        ? <AnalysisResponse chatAnalysis={analysisResult.analysis} context={analysisResult.context} />
+        : <p className="text-sm text-slate-400">Run an analysis to see market reasoning.</p>}
 
       <div className="panel p-4">
         <h3 className="mb-3 text-sm font-semibold">Saved chats</h3>

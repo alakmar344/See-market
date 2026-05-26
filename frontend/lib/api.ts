@@ -4,6 +4,14 @@ let requestCounter = 0;
 
 export type AssetType = 'stock' | 'crypto';
 
+export type ChatAnalysis = {
+  summary: string;
+  risk_notes: string;
+  confidence_level: number;
+  verdict: 'buy' | 'no_buy';
+  verdict_reasons: string[];
+};
+
 export type MarketSnapshot = {
   symbol: string;
   price: number;
@@ -100,9 +108,9 @@ export function fetchMarket(symbol: string, assetType: AssetType = 'stock') {
   return jsonRequest<MarketSnapshot>(`${API_URL}/api/v1/markets/${symbol}?asset_type=${assetType}`, { method: 'GET' });
 }
 
-export function askAI(symbol: string, question: string, assetType: AssetType, userId = 1) {
+export function runAnalysis(symbol: string, question: string, assetType: AssetType, userId = 1) {
   const params = new URLSearchParams({ symbol, question, asset_type: assetType, user_id: String(userId) });
-  return jsonRequest<{ context: MarketSnapshot; analysis: Record<string, unknown> }>(`${API_URL}/api/v1/chat/analyze`, {
+  return jsonRequest<{ context: MarketSnapshot; analysis: ChatAnalysis }>(`${API_URL}/api/v1/chat/analyze`, {
     method: 'POST',
     body: params,
   });

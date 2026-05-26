@@ -68,7 +68,7 @@ export default function DashboardPage() {
           <option value="crypto">Crypto</option>
         </select>
         <Link href={`/markets/${encodeURIComponent(safeSymbol)}`} className="rounded-lg border border-indigo-300/20 bg-indigo-500 px-4 py-2 text-center text-sm font-semibold shadow-[0_10px_24px_rgba(79,70,229,0.3)] transition hover:bg-indigo-400">Open market</Link>
-        <Link href="/chat" className="rounded-lg border border-white/20 px-4 py-2 text-center text-sm transition hover:bg-white/10">Ask AI</Link>
+        <Link href="/chat" className="rounded-lg border border-white/20 px-4 py-2 text-center text-sm transition hover:bg-white/10">Analyze</Link>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
