@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 
-import { AIResponse } from '@/components/ai-response';
+import { AnalysisResponse } from '@/components/analysis-response';
 import { UIButton } from '@/components/ui-button';
-import { askAI, fetchSavedChats, type AssetType, type ChatAnalysis, type MarketSnapshot, type SavedChatItem } from '@/lib/api';
+import { runAnalysis as callAnalysis, fetchSavedChats, type AssetType, type ChatAnalysis, type MarketSnapshot, type SavedChatItem } from '@/lib/api';
 
 export default function ChatPage() {
   const [symbol, setSymbol] = useState('AAPL');
@@ -43,7 +43,7 @@ export default function ChatPage() {
     console.log('[chat][analysis:start]', { symbol, assetType, questionLength: question.length });
     setAnalyzing(true);
     try {
-      const result = await askAI(symbol, question, assetType);
+      const result = await callAnalysis(symbol, question, assetType);
       console.log('[chat][analysis:success]', { symbol, assetType, verdict: result.analysis.verdict });
       setAnalysisResult(result);
       const savedChats = await fetchSavedChats();
@@ -67,11 +67,11 @@ export default function ChatPage() {
           <option value="crypto">Crypto</option>
         </select>
         <input className="sm:col-span-2" value={question} onChange={(e) => setQuestion(e.target.value)} />
-        <UIButton onClick={runAnalysis} disabled={analyzing}>{analyzing ? 'Analyzing...' : 'Ask AI'}</UIButton>
+        <UIButton onClick={runAnalysis} disabled={analyzing}>{analyzing ? 'Analyzing...' : 'Analyze'}</UIButton>
       </div>
 
       {analysisResult
-        ? <AIResponse chatAnalysis={analysisResult.analysis} context={analysisResult.context} />
+        ? <AnalysisResponse chatAnalysis={analysisResult.analysis} context={analysisResult.context} />
         : <p className="text-sm text-slate-400">Run an analysis to see market reasoning.</p>}
 
       <div className="panel p-4">

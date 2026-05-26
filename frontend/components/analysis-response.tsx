@@ -16,9 +16,9 @@ type PlainProps = {
   context?: never;
 };
 
-type AIResponseProps = StructuredProps | PlainProps;
+type AnalysisResponseProps = StructuredProps | PlainProps;
 
-export function AIResponse(props: AIResponseProps) {
+export function AnalysisResponse(props: AnalysisResponseProps) {
   if (props.chatAnalysis && props.context) {
     const { chatAnalysis: analysis, context } = props;
     const isBuy = analysis.verdict === 'buy';
@@ -26,7 +26,7 @@ export function AIResponse(props: AIResponseProps) {
     return (
       <section className="panel space-y-4 p-4">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-slate-200">AI Reasoning</h3>
+          <h3 className="text-sm font-semibold text-slate-200">Market Analysis</h3>
           <span className="rounded bg-indigo-500/20 px-2 py-0.5 text-xs text-indigo-300">
             Confidence {Math.round(analysis.confidence_level * 100)}%
           </span>
@@ -84,7 +84,7 @@ export function AIResponse(props: AIResponseProps) {
   return (
     <section className="panel space-y-3 p-4">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-slate-200">AI Reasoning</h3>
+        <h3 className="text-sm font-semibold text-slate-200">Market Analysis</h3>
         <span className="rounded bg-indigo-500/20 px-2 py-0.5 text-xs text-indigo-300">Confidence {Math.round((props.confidence ?? 0) * 100)}%</span>
       </div>
       <pre className="overflow-auto whitespace-pre-wrap text-sm text-slate-200">{props.content}</pre>

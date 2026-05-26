@@ -7,7 +7,7 @@ import { Providers } from '@/components/providers';
 
 export const metadata: Metadata = {
   title: 'See-market',
-  description: 'AI-powered market intelligence platform',
+  description: 'Market intelligence platform',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

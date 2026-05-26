@@ -3,7 +3,7 @@
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-import { AIResponse } from '@/components/ai-response';
+import { AnalysisResponse } from '@/components/analysis-response';
 import { UIButton } from '@/components/ui-button';
 import { fetchMarket, type MarketSnapshot } from '@/lib/api';
 
@@ -64,7 +64,7 @@ export default function MarketDetailsPage() {
         <p className="text-sm text-slate-300">RSI: {data.indicators.rsi.toFixed(2)} | MACD: {data.indicators.macd.toFixed(2)}</p>
         <p className="text-sm text-slate-300">Support: {data.indicators.support_resistance.support.toFixed(2)} | Resistance: {data.indicators.support_resistance.resistance.toFixed(2)}</p>
       </div>
-      <AIResponse content={`Risk: ${data.risk.explanation}\n\nSentiment: ${data.sentiment.label} (${data.sentiment.score.toFixed(2)})`} confidence={0.74} />
+      <AnalysisResponse content={`Risk: ${data.risk.explanation}\n\nSentiment: ${data.sentiment.label} (${data.sentiment.score.toFixed(2)})`} confidence={0.74} />
     </section>
   );
 }
