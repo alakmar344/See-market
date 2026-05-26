@@ -192,6 +192,195 @@ function computeRiskScore(values) {
   return Math.min(100, Math.max(0, Math.sqrt(variance) * 2000));
 }
 
+function average(values) {
+  const valid = values.filter((value) => Number.isFinite(value));
+  if (valid.length === 0) return 0;
+  return valid.reduce((sum, value) => sum + value, 0) / valid.length;
+}
+
+function stdDev(values) {
+  if (values.length === 0) return 0;
+  const mean = average(values);
+  const variance = average(values.map((value) => (value - mean) ** 2));
+  return Math.sqrt(variance);
+}
+
+function safePct(from, to) {
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from === 0) return 0;
+  return ((to - from) / Math.abs(from)) * 100;
+}
+
+function movingAverage(values, period, offset = 0) {
+  const end = values.length - offset;
+  const start = Math.max(0, end - period);
+  const window = values.slice(start, end);
+  return average(window);
+}
+
+function returnPct(values, hours) {
+  const end = values.at(-1);
+  const start = values.at(-1 - hours);
+  return safePct(start, end);
+}
+
+function maxDrawdownPct(values, period) {
+  const window = values.slice(-period);
+  if (window.length === 0) return 0;
+  let peak = window[0];
+  let worst = 0;
+  for (const price of window) {
+    if (price > peak) peak = price;
+    if (peak > 0) worst = Math.max(worst, ((peak - price) / peak) * 100);
+  }
+  return worst;
+}
+
+function positiveCandleRatio(values, period) {
+  const window = values.slice(-period);
+  if (window.length < 2) return 0.5;
+  let positive = 0;
+  for (let i = 1; i < window.length; i += 1) {
+    if (window[i] > window[i - 1]) positive += 1;
+  }
+  return positive / (window.length - 1);
+}
+
+function buildDecisionMetrics(context) {
+  const values = context.history.map((item) => Number(item.value)).filter((value) => Number.isFinite(value));
+  const volumes = context.history.map((item) => Number(item.volume ?? 0)).map((value) => (Number.isFinite(value) ? value : 0));
+  const currentPrice = values.at(-1) ?? 0;
+  const support = context.indicators.support_resistance?.support ?? currentPrice;
+  const resistance = context.indicators.support_resistance?.resistance ?? currentPrice;
+  const range = Math.max(0.00001, resistance - support);
+
+  const rsi6 = computeRsi(values, 6);
+  const rsi9 = computeRsi(values, 9);
+  const rsi14 = computeRsi(values, 14);
+  const rsi21 = computeRsi(values, 21);
+  const rsi14Prev = computeRsi(values.slice(0, -3), 14);
+  const macdValue = ema(values, 12) - ema(values, 26);
+
+  const returns1 = [];
+  for (let i = 1; i < values.length; i += 1) {
+    const change = safePct(values[i - 1], values[i]) / 100;
+    returns1.push(change);
+  }
+
+  const vol = (period) => stdDev(returns1.slice(-period)) * 100;
+  const sma5 = movingAverage(values, 5);
+  const sma8 = movingAverage(values, 8);
+  const sma13 = movingAverage(values, 13);
+  const sma21 = movingAverage(values, 21);
+  const sma34 = movingAverage(values, 34);
+  const avgVol5 = average(volumes.slice(-5));
+  const avgVol20 = average(volumes.slice(-20));
+  const currentVol = volumes.at(-1) ?? 0;
+  const obvSeries = [];
+  let obv = 0;
+  for (let i = 1; i < values.length; i += 1) {
+    if (values[i] > values[i - 1]) obv += volumes[i] ?? 0;
+    else if (values[i] < values[i - 1]) obv -= volumes[i] ?? 0;
+    obvSeries.push(obv);
+  }
+  const obvSlope = obvSeries.length < 11 ? 0 : safePct(obvSeries.at(-11), obvSeries.at(-1));
+
+  const metrics = [];
+  const addMetric = (name, value, score, detail) => {
+    metrics.push({
+      name,
+      value: Number(Number.isFinite(value) ? value.toFixed(4) : 0),
+      signal: score > 0 ? 'bullish' : score < 0 ? 'bearish' : 'neutral',
+      score,
+      detail
+    });
+  };
+
+  const scoreReturn = (value, weak, strong) => (value >= strong ? 1 : value >= weak ? 0.5 : value <= -strong ? -1 : value <= -weak ? -0.5 : 0);
+  const scoreNear = (value, low, high) => (value < low ? 1 : value > high ? -1 : 0);
+  const scoreHighRisk = (value, warn, danger) => (value >= danger ? -1 : value >= warn ? -0.5 : 0.5);
+
+  // 1-12 return metrics
+  [1, 2, 3, 4, 6, 8, 12, 16, 24, 36, 48, 72].forEach((hours, index) => {
+    const value = returnPct(values, hours);
+    addMetric(`return_${hours}h`, value, scoreReturn(value, 0.2 + index * 0.03, 0.8 + index * 0.05), `${hours}h return`);
+  });
+
+  // 13-22 trend metrics
+  addMetric('price_vs_sma5', safePct(sma5, currentPrice), scoreReturn(safePct(sma5, currentPrice), 0.2, 1.2), 'Price vs SMA 5');
+  addMetric('price_vs_sma8', safePct(sma8, currentPrice), scoreReturn(safePct(sma8, currentPrice), 0.2, 1.2), 'Price vs SMA 8');
+  addMetric('price_vs_sma13', safePct(sma13, currentPrice), scoreReturn(safePct(sma13, currentPrice), 0.2, 1.4), 'Price vs SMA 13');
+  addMetric('price_vs_sma21', safePct(sma21, currentPrice), scoreReturn(safePct(sma21, currentPrice), 0.2, 1.5), 'Price vs SMA 21');
+  addMetric('price_vs_sma34', safePct(sma34, currentPrice), scoreReturn(safePct(sma34, currentPrice), 0.2, 1.8), 'Price vs SMA 34');
+  addMetric('sma5_vs_sma13', safePct(sma13, sma5), scoreReturn(safePct(sma13, sma5), 0.2, 1), 'Fast vs medium trend');
+  addMetric('sma8_vs_sma21', safePct(sma21, sma8), scoreReturn(safePct(sma21, sma8), 0.2, 1), 'Fast vs slow trend');
+  addMetric('sma13_slope_5h', safePct(movingAverage(values, 13, 5), sma13), scoreReturn(safePct(movingAverage(values, 13, 5), sma13), 0.1, 0.5), 'SMA13 slope');
+  addMetric('sma21_slope_8h', safePct(movingAverage(values, 21, 8), sma21), scoreReturn(safePct(movingAverage(values, 21, 8), sma21), 0.1, 0.5), 'SMA21 slope');
+  addMetric('macd_level', macdValue, macdValue > 0.15 ? 1 : macdValue > 0 ? 0.5 : macdValue < -0.15 ? -1 : macdValue < 0 ? -0.5 : 0, 'MACD direction');
+
+  // 23-30 RSI & momentum exhaustion metrics
+  addMetric('rsi_6', rsi6, scoreNear(rsi6, 35, 75), 'RSI 6');
+  addMetric('rsi_9', rsi9, scoreNear(rsi9, 35, 72), 'RSI 9');
+  addMetric('rsi_14', rsi14, scoreNear(rsi14, 35, 70), 'RSI 14');
+  addMetric('rsi_21', rsi21, scoreNear(rsi21, 38, 68), 'RSI 21');
+  addMetric('rsi14_change_3h', rsi14 - rsi14Prev, scoreReturn(rsi14 - rsi14Prev, 1, 4), 'RSI momentum shift');
+  addMetric('rsi14_overheat_guard', rsi14, rsi14 >= 78 ? -1 : rsi14 >= 72 ? -0.5 : 0, 'RSI overheat guard');
+  addMetric('rsi6_overbought_guard', rsi6, rsi6 >= 82 ? -1 : rsi6 >= 76 ? -0.5 : 0, 'Very short-term overbought');
+  addMetric('rsi_price_divergence_proxy', returnPct(values, 6) - (rsi14 - rsi14Prev), returnPct(values, 6) > 1.2 && rsi14 < rsi14Prev ? -1 : 0, 'Price up while RSI weakens');
+
+  // 31-38 volatility and downside metrics
+  addMetric('volatility_5h', vol(5), scoreHighRisk(vol(5), 0.7, 1.4), 'Short volatility');
+  addMetric('volatility_10h', vol(10), scoreHighRisk(vol(10), 0.7, 1.4), 'Medium volatility');
+  addMetric('volatility_20h', vol(20), scoreHighRisk(vol(20), 0.8, 1.6), 'Long volatility');
+  addMetric('atr_proxy_5h', average(returns1.slice(-5).map((v) => Math.abs(v))) * 100, scoreHighRisk(average(returns1.slice(-5).map((v) => Math.abs(v))) * 100, 0.6, 1.3), 'Average true range proxy');
+  addMetric('max_drawdown_12h', maxDrawdownPct(values, 12), scoreHighRisk(maxDrawdownPct(values, 12), 2.5, 5), 'Drawdown 12h');
+  addMetric('max_drawdown_24h', maxDrawdownPct(values, 24), scoreHighRisk(maxDrawdownPct(values, 24), 4, 8), 'Drawdown 24h');
+  addMetric('max_drawdown_48h', maxDrawdownPct(values, 48), scoreHighRisk(maxDrawdownPct(values, 48), 6, 12), 'Drawdown 48h');
+  addMetric('downside_upside_ratio_20h', Math.abs(average(returns1.slice(-20).filter((v) => v < 0))) / Math.max(0.0001, average(returns1.slice(-20).filter((v) => v > 0))), Math.abs(average(returns1.slice(-20).filter((v) => v < 0))) > average(returns1.slice(-20).filter((v) => v > 0)) ? -0.5 : 0.5, 'Downside pressure ratio');
+
+  // 39-44 volume flow metrics
+  addMetric('volume_vs_avg_5h', safePct(avgVol5, currentVol), scoreReturn(safePct(avgVol5, currentVol), 5, 25), 'Current volume vs 5h');
+  addMetric('volume_vs_avg_20h', safePct(avgVol20, currentVol), scoreReturn(safePct(avgVol20, currentVol), 8, 35), 'Current volume vs 20h');
+  addMetric('obv_slope_10h', obvSlope, scoreReturn(obvSlope, 1, 5), 'On-balance volume slope');
+  addMetric('price_up_low_volume_penalty', returnPct(values, 3), returnPct(values, 3) > 1 && safePct(avgVol20, currentVol) < -20 ? -1 : 0, 'Up move without participation');
+  addMetric('distribution_day_flag', currentPrice < (values.at(-2) ?? currentPrice) && currentVol > avgVol20 * 1.4 ? -1 : 0, currentVol, 'High-volume down candle');
+  addMetric('accumulation_day_flag', currentPrice > (values.at(-2) ?? currentPrice) && currentVol > avgVol20 * 1.4 ? 1 : 0, currentVol, 'High-volume up candle');
+
+  // 45-50 range/structure metrics
+  addMetric('distance_from_support_30h', safePct(support, currentPrice), scoreReturn(safePct(support, currentPrice), 0.2, 1), 'Distance from support');
+  addMetric('distance_from_resistance_30h', safePct(currentPrice, resistance), scoreReturn(safePct(currentPrice, resistance), 0.2, 1.2), 'Distance to resistance');
+  addMetric('range_position_30h', ((currentPrice - support) / range) * 100, ((currentPrice - support) / range) > 0.8 ? -0.5 : ((currentPrice - support) / range) < 0.35 ? 0.5 : 0, 'Position inside range');
+  addMetric('breakout_strength_30h', resistance === 0 ? 0 : safePct(resistance, currentPrice), safePct(resistance, currentPrice) > 0.6 ? 1 : safePct(resistance, currentPrice) < -1 ? -1 : 0, 'Breakout confirmation');
+  addMetric('pullback_from_peak_12h', safePct(Math.max(...values.slice(-12), currentPrice), currentPrice), safePct(Math.max(...values.slice(-12), currentPrice), currentPrice) < -3 ? -0.5 : 0.5, 'Pullback depth');
+  addMetric('trend_consistency_20h', positiveCandleRatio(values, 20) * 100, positiveCandleRatio(values, 20) > 0.62 ? 1 : positiveCandleRatio(values, 20) < 0.45 ? -1 : 0, 'Positive candle ratio');
+
+  const overheatSignals = [];
+  const sma20 = movingAverage(values, 20);
+  const sd20 = stdDev(values.slice(-20));
+  const upperBand = sma20 + sd20 * 2;
+  if (rsi14 >= 72) overheatSignals.push('RSI 14 is overbought');
+  if (rsi6 >= 78) overheatSignals.push('RSI 6 is overheated');
+  if (currentPrice > upperBand && upperBand > 0) overheatSignals.push('Price is above upper volatility band');
+  if (safePct(sma20, currentPrice) > 4.5) overheatSignals.push('Price is stretched above SMA 20');
+  if (returnPct(values, 3) > 2.5 && returnPct(values, 12) > 5) overheatSignals.push('Short-term rally is too steep');
+
+  const bullishSignals = metrics.filter((metric) => metric.score > 0).length;
+  const bearishSignals = metrics.filter((metric) => metric.score < 0).length;
+  const neutralSignals = metrics.length - bullishSignals - bearishSignals;
+  let totalScore = metrics.reduce((sum, metric) => sum + metric.score, 0);
+
+  if (overheatSignals.length >= 2) totalScore -= 2;
+  if (overheatSignals.length >= 3) totalScore -= 3;
+
+  return {
+    metrics,
+    totalScore,
+    overheatSignals,
+    bullishSignals,
+    bearishSignals,
+    neutralSignals
+  };
+}
+
 function marketRegime(change) {
   if (change > 1) return 'bullish';
   if (change < -1) return 'bearish';
@@ -204,56 +393,47 @@ function confidenceLevel(riskScore) {
 }
 
 function computeVerdict(context) {
-  let score = 0;
+  const decision = buildDecisionMetrics(context);
   const reasons = [];
 
-  if (context.risk.market_regime === 'bullish') {
-    score += 1;
-    reasons.push('Market is in a bullish regime');
-  } else if (context.risk.market_regime === 'bearish') {
-    score -= 1;
-    reasons.push('Market is in a bearish regime');
+  if (context.risk.market_regime === 'bullish') reasons.push('Market regime is bullish');
+  if (context.risk.market_regime === 'bearish') reasons.push('Market regime is bearish');
+
+  let finalScore = decision.totalScore;
+  if (context.risk.risk_score >= 70) {
+    finalScore -= 3;
+    reasons.push(`Risk score is very high (${context.risk.risk_score.toFixed(1)})`);
+  } else if (context.risk.risk_score >= 55) {
+    finalScore -= 1.5;
+    reasons.push(`Risk score is elevated (${context.risk.risk_score.toFixed(1)})`);
   } else {
-    reasons.push('Market is moving sideways');
+    reasons.push(`Risk score is contained (${context.risk.risk_score.toFixed(1)})`);
   }
 
-  if (context.sentiment.label === 'positive') {
-    score += 1;
-    reasons.push('Price sentiment is positive');
-  } else {
-    score -= 1;
-    reasons.push('Price sentiment is negative');
+  if (decision.overheatSignals.length > 0) {
+    reasons.push(...decision.overheatSignals.map((signal) => `${signal} — chase risk is high`));
   }
 
-  const rsi = context.indicators.rsi;
-  if (rsi < 30) {
-    score += 1;
-    reasons.push(`RSI oversold at ${rsi.toFixed(1)} — potential reversal upward`);
-  } else if (rsi > 70) {
-    score -= 1;
-    reasons.push(`RSI overbought at ${rsi.toFixed(1)} — risk of pullback`);
-  } else {
-    reasons.push(`RSI neutral at ${rsi.toFixed(1)}`);
-  }
+  const largestContributors = [...decision.metrics]
+    .sort((a, b) => Math.abs(b.score) - Math.abs(a.score))
+    .slice(0, 5)
+    .map((item) => `${item.detail}: ${item.signal}`);
+  reasons.push(...largestContributors);
 
-  if (context.indicators.macd > 0) {
-    score += 1;
-    reasons.push('MACD is positive — bullish momentum');
-  } else {
-    score -= 1;
-    reasons.push('MACD is negative — bearish momentum');
-  }
-
-  if (context.risk.risk_score > 60) {
-    score -= 1;
-    reasons.push(`High volatility (risk score ${context.risk.risk_score.toFixed(1)}) — elevated risk`);
-  } else {
-    reasons.push(`Moderate volatility (risk score ${context.risk.risk_score.toFixed(1)})`);
-  }
+  const hardNoBuy = decision.overheatSignals.length >= 3 && context.risk.risk_score >= 45;
+  const verdict = hardNoBuy ? 'no_buy' : finalScore >= 8 ? 'buy' : 'no_buy';
 
   return {
-    verdict: score > 0 ? 'buy' : 'no_buy',
-    verdict_reasons: reasons
+    verdict,
+    verdict_reasons: reasons.slice(0, 12),
+    decision_score: Number(finalScore.toFixed(2)),
+    metrics_evaluated: decision.metrics.length,
+    metrics: decision.metrics,
+    signal_balance: {
+      bullish: decision.bullishSignals,
+      bearish: decision.bearishSignals,
+      neutral: decision.neutralSignals
+    }
   };
 }
 
