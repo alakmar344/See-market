@@ -1,4 +1,5 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+const CONNECTION_TIMEOUT_MS = 120_000;
 let requestCounter = 0;
 
 export type AssetType = 'stock' | 'crypto';
@@ -31,6 +32,7 @@ export type DashboardPayload = {
 async function jsonRequest<T>(input: string, init?: RequestInit): Promise<T> {
   const requestId = `req-${Date.now()}-${++requestCounter}`;
   const method = init?.method ?? 'GET';
+  const timeoutSignal = AbortSignal.timeout(CONNECTION_TIMEOUT_MS);
   const headers = {
     'Content-Type': 'application/x-www-form-urlencoded',
     ...(init?.headers ?? {}),
@@ -46,6 +48,7 @@ async function jsonRequest<T>(input: string, init?: RequestInit): Promise<T> {
       headers,
       credentials: 'include',
       cache: 'no-store',
+      signal: init?.signal ?? timeoutSignal,
     });
     const durationMs = Date.now() - startedAt;
     const contentType = response.headers.get('content-type');
@@ -87,6 +90,10 @@ async function jsonRequest<T>(input: string, init?: RequestInit): Promise<T> {
     });
     throw error;
   }
+}
+
+export function pingBackend() {
+  return jsonRequest<{ status: string }>(`${API_URL}/health`, { method: 'GET', headers: {} });
 }
 
 export function fetchMarket(symbol: string, assetType: AssetType = 'stock') {

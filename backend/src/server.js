@@ -13,6 +13,7 @@ const chatsPath = path.join(dataDir, 'chats.json');
 const app = express();
 const port = Number(process.env.PORT || 8000);
 const corsOrigin = process.env.CORS_ORIGIN || 'https://see-market.vercel.app';
+const CONNECTION_TIMEOUT_MS = 120_000;
 let requestCounter = 0;
 
 app.use(cors({ origin: corsOrigin, credentials: true }));
@@ -413,6 +414,11 @@ app.delete('/api/v1/watchlist/:symbol', (req, res) => {
   res.json({ removed: symbol });
 });
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`See-market backend running on ${port}`);
 });
+
+server.keepAliveTimeout = CONNECTION_TIMEOUT_MS;
+server.requestTimeout = CONNECTION_TIMEOUT_MS;
+server.timeout = CONNECTION_TIMEOUT_MS;
+server.headersTimeout = CONNECTION_TIMEOUT_MS + 5_000;
