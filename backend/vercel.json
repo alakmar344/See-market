@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "buildCommand": "npm install",
+  "installCommand": "npm install",
+  "env": {
+    "AGENTROUTER_API_KEY": "@agentrouter_api_key",
+    "CORS_ORIGIN": "@cors_origin"
+  },
+  "functions": {
+    "src/server.js": {
+      "runtime": "nodejs20.x",
+      "memory": 3008,
+      "maxDuration": 300
+    }
+  },
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "src/server.js"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "projects": [
+    {
+      "name": "see-market-frontend",
+      "path": "frontend",
+      "buildCommand": "npm run build",
+      "outputDirectory": ".next",
+      "installCommand": "npm install"
+    },
+    {
+      "name": "see-market-backend",
+      "path": "backend",
+      "buildCommand": "npm install",
+      "installCommand": "npm install"
+    }
+  ]
+}
