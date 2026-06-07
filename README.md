@@ -91,3 +91,5 @@ This repository contains the full See-market product experience and supporting s
 - Watchlist and analysis continuity
 
 In short, this repository represents the complete foundation of **See-market as a market intelligence product**.
+
+<!-- Trigger build for Vercel -->
