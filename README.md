@@ -1,5 +1,9 @@
 # See-market
 
+[![Live](https://img.shields.io/badge/live-see--market.vercel.app-brightgreen?style=for-the-badge)](https://see-market.vercel.app)
+
+**→ Try it live: [see-market.vercel.app](https://see-market.vercel.app)** — one of the eSAMz Worlds from [esamz.me](https://esamz.me).
+
 **See-market is a modern market intelligence experience built for people who want fast clarity, not complexity.**  
 It helps traders, learners, and market-focused teams quickly understand what is moving, why it matters, and where risk may be building—without digging through scattered tools.
 
